@@ -182,6 +182,9 @@ const GENERAL = [
 function scoreAnswer(scan) {
   const findings = [...(scan.findings || [])].sort((a, b) => (b.points_lost || 0) - (a.points_lost || 0));
   let text = `${scan.domain} scored ${scan.score} out of 100. Every site starts at 100 and loses points for each problem: critical −30, high −15, medium −8, low −3. Each area (certificate, protocols, headers, cookies...) can lose only a limited number of points, so one weakness cannot wipe out the whole score.`;
+  if (scan.untested?.length) {
+    text += ` Note: this is a partial result. ${scan.untested.join(", ")} could not be checked, so the score only counts the checks that ran.`;
+  }
   if (!findings.length) return text + " No problems were found, so no points were lost.";
   text += "\n\nPoints lost:\n" + findings
     .map((f) => (f.points_lost === 0 ? `• 0 ${f.title} (category limit reached)` : `• −${f.points_lost ?? "?"} ${f.title}`))

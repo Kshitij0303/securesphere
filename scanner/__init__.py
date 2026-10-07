@@ -112,6 +112,20 @@ def run_scan(domain: str, port: int = 443, ip: str | None = None,
         ciphers["engine"] = "python-ssl"
         vulns = {"heartbleed": None, "ccs_injection": None, "robot": None}
 
+    # Checks that could not run at all: the score then only counts the checks that did, and the UI must say so.
+    untested = []
+    if all(v is None for v in tls.values()):
+        untested.append("TLS versions")
+    if all(v is None for v in headers["headers"].values()):
+        blocked = headers["details"].get("blocked_by")
+        untested.append(f"Security headers and cookies (blocked by {blocked})" if blocked else "Security headers and cookies")
+    if redirect.get("http_open") is None:
+        untested.append("HTTP to HTTPS redirect")
+    if not deep:
+        untested.append("Full cipher and vulnerability tests")
+    if all(v is None for v in dns.values()):
+        untested.append("DNS checks")
+
     findings = build_findings(cert, tls, ciphers, headers, redirect, vulns, dns, variant)
     score, grade, cap = calculate_score(findings)
     return {
@@ -129,4 +143,5 @@ def run_scan(domain: str, port: int = 443, ip: str | None = None,
         "score": score,
         "grade": grade,
         "score_cap": cap,
+        "untested": untested,  # names of checks that could not run; empty = a complete result
     }

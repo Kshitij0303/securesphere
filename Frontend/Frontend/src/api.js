@@ -120,6 +120,7 @@ export function normalizeScan(raw) {
     dns: raw.dns || null,
     variant: raw.variant || null,
     cached: Boolean(raw.cached),
+    untested: raw.untested || [], // checks that could not run: the score is then partial
     findings: (raw.findings || []).map((f) => {
       const e = explanations[f.id] || {};
       return {

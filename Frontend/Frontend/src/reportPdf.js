@@ -37,6 +37,9 @@ export function downloadReport(data, grade) {
   row("Domain", data.domain);
   row("Scanned on", new Date(data.scanned_at).toLocaleString());
   row("Score", `${data.score} / 100 (grade ${grade})`);
+  if (data.untested?.length) {
+    text(`Partial result: ${data.untested.join(", ")} could not be checked. The score only counts the checks that ran.`, { size: 9, color: [146, 64, 14] });
+  }
   if (data.score_cap) row("Score capped", `at ${data.score_cap.max_score} because: ${data.score_cap.title}`);
   text("The score and grade come from SecureSphere's own rules. They are not an industry standard.", { size: 9, color: [100, 116, 139] });
 

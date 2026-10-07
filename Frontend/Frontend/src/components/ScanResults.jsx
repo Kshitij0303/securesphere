@@ -142,6 +142,12 @@ export default function ScanResults({ data, compare = null }) {
           {data.cached && (
             <p className="text-sm text-slate-500">This site was scanned a few minutes ago, so that result was reused.</p>
           )}
+          {data.untested?.length > 0 && (
+            <p className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-sm text-amber-900">
+              <strong>Partial result:</strong> {data.untested.join(", ")} could not be checked. The score only counts the
+              checks that ran, so it may be higher than the site deserves.
+            </p>
+          )}
           {data.score_cap && (
             <p className="mt-1 text-sm font-medium text-red-800">
               Score capped at {data.score_cap.max_score} because: {data.score_cap.title}.

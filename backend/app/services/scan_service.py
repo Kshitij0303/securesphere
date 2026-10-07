@@ -1,6 +1,7 @@
 """Module 7: The scan pipeline. Validate -> (reuse a fresh result) -> scan -> explain -> save."""
 import asyncio
 import logging
+import ssl
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
@@ -15,6 +16,29 @@ log = logging.getLogger("securesphere.scan")
 
 # Fields that belong to one user's copy of a scan, not to the scan result itself.
 OWNER_FIELDS = ("_id", "user_id", "source", "cached", "cached_from")
+
+
+class ScanFailed(Exception):
+    """The scanner could not scan the site (the original error is the __cause__)."""
+
+
+def _run_scanner(domain: str, ip: str, progress):
+    try:
+        return run_scan(domain, ip=ip, progress=progress)
+    except Exception as e:
+        raise ScanFailed() from e
+
+
+def _failure_message(domain: str, error: BaseException | None) -> str:
+    """A plain-English reason why the site could not be scanned."""
+    if isinstance(error, ssl.SSLError):
+        return (f"{domain} answered, but no secure connection could be set up. It may only support very old "
+                "encryption that modern software refuses to use.")
+    if isinstance(error, (TimeoutError, ConnectionRefusedError)):
+        return f"{domain} does not answer on HTTPS (port 443). The site may not support HTTPS at all."
+    if isinstance(error, OSError):
+        return f"Could not connect to {domain} over HTTPS. The site may be down or not support HTTPS."
+    return f"Could not scan {domain}. It may be unreachable or not serving HTTPS."
 
 
 async def _recent_result(domain: str) -> dict | None:
@@ -42,14 +66,15 @@ async def perform_scan(user_id: str, raw_domain: str, source: str = "manual",
     ip = await asyncio.to_thread(assert_public, domain)
 
     # The scanner is blocking code, so it runs in a worker thread to keep the API responsive.
+    # Its errors are wrapped in ScanFailed inside the thread: a socket timeout raises TimeoutError, the same
+    # class asyncio uses for "the whole scan took too long", and the two must not be confused.
     try:
-        result = await asyncio.wait_for(asyncio.to_thread(run_scan, domain, ip=ip, progress=progress),
-                                        SCAN_TIMEOUT_SECONDS)
+        result = await asyncio.wait_for(asyncio.to_thread(_run_scanner, domain, ip, progress), SCAN_TIMEOUT_SECONDS)
+    except ScanFailed as e:
+        log.warning("Scan failed for %s: %r", domain, e.__cause__)
+        raise HTTPException(502, _failure_message(domain, e.__cause__))
     except asyncio.TimeoutError:
         raise HTTPException(504, "The scan took too long. Please try again later.")
-    except Exception:
-        log.exception("Scan failed for %s", domain)
-        raise HTTPException(502, "Could not scan this site. It may be unreachable or not serving HTTPS.")
 
     # Only real findings are explained; anything returned for an unknown id is thrown away.
     findings = result.get("findings", [])

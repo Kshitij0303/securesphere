@@ -290,3 +290,27 @@ async def test_api_sends_security_headers(client):
                    "X-Content-Type-Options", "Referrer-Policy"):
         assert header in res.headers
     assert res.headers["Content-Security-Policy"].startswith("default-src 'none'")
+
+
+async def test_site_without_https_gets_a_clear_message(client, monkeypatch):
+    """A socket timeout is TimeoutError, like asyncio's own; it must not read as "the scan took too long"."""
+    def no_https(domain, ip=None, progress=None):
+        raise TimeoutError("timed out")
+    monkeypatch.setattr("app.services.scan_service.run_scan", no_https)
+    headers = await signup(client)
+    job = await run_job(client, headers, "nohttps.example")
+    assert job["status"] == "error"
+    assert "does not answer on HTTPS" in job["error"]
+
+
+async def test_really_slow_scan_says_it_took_too_long(client, monkeypatch):
+    import time
+
+    def slow(domain, ip=None, progress=None):
+        time.sleep(0.5)
+        return {}
+    monkeypatch.setattr("app.services.scan_service.run_scan", slow)
+    monkeypatch.setattr("app.services.scan_service.SCAN_TIMEOUT_SECONDS", 0.1)
+    headers = await signup(client)
+    job = await run_job(client, headers, "slow.example")
+    assert job["status"] == "error" and "took too long" in job["error"]

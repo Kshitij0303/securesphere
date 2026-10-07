@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { clearToken, getProfile, getToken, getUnreadCount, resendVerification } from "./api";
+import { useScan } from "./ScanContext";
 import Assistant from "./components/Assistant";
 import Avatar from "./components/Avatar";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -52,6 +53,7 @@ export default function App() {
   const [unread, setUnread] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
+  const { setLastScan } = useScan();
 
   // Load name/email for the avatar whenever someone logs in.
   useEffect(() => {
@@ -70,6 +72,7 @@ export default function App() {
 
   function handleLogout() {
     clearToken();
+    setLastScan(null); // the next person on this browser must not see this scan in the assistant
     setLoggedIn(false);
     navigate("/login");
   }

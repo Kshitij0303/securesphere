@@ -18,6 +18,9 @@ export default function Assistant() {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages, open]);
 
+  // The assistant explains a scan, so it appears only once there is one (a finished scan or an opened report).
+  if (!lastScan) return null;
+
   async function send(text) {
     const message = text.trim();
     if (!message || busy) return;

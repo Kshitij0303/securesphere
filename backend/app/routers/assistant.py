@@ -22,6 +22,11 @@ log = logging.getLogger("securesphere.assistant")
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 client = anthropic.AsyncAnthropic()  # reads ANTHROPIC_API_KEY from the environment (.env)
 
+
+def _configured() -> bool:
+    """A server needs ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN). Without one the SDK cannot send requests."""
+    return bool(client.api_key or client.auth_token)
+
 SYSTEM_PROMPT = """You are the SecureSphere security assistant. SecureSphere checks a website's HTTPS \
 configuration: certificate, TLS versions, ciphers, security headers, cookies, HTTP-to-HTTPS redirect, DNS \
 settings and a few known TLS vulnerabilities. Your users are website owners who are usually not security experts.
@@ -58,6 +63,8 @@ async def _scan_context(scan_id: str | None, user_id: str) -> str:
 
 @router.post("")
 async def ask(body: AssistantIn, user: dict = Depends(current_user)):
+    if not _configured():
+        raise HTTPException(503, "The AI assistant is not set up on this server.")
     uid = str(user["_id"])
     since = datetime.now(timezone.utc) - timedelta(hours=1)
     if await db.assistant_usage.count_documents({"user_id": uid, "created_at": {"$gte": since}}) >= MAX_ASSISTANT_MESSAGES_PER_HOUR:
@@ -90,8 +97,9 @@ async def ask(body: AssistantIn, user: dict = Depends(current_user)):
         raise HTTPException(502, "The AI assistant is not available right now.")
     except anthropic.APIConnectionError:
         raise HTTPException(502, "The AI assistant could not be reached.")
-    except anthropic.AnthropicError:  # e.g. no API key configured at all
-        raise HTTPException(503, "The AI assistant is not set up on this server.")
+    except anthropic.AnthropicError:
+        log.exception("Claude request failed")
+        raise HTTPException(502, "The AI assistant is not available right now.")
 
     await db.assistant_usage.insert_one({"user_id": uid, "created_at": datetime.now(timezone.utc)})
 

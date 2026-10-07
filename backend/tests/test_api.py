@@ -3,6 +3,7 @@ import asyncio
 from datetime import datetime, timezone
 
 import anthropic
+import httpx
 import pytest
 
 import app.routers.assistant as assistant_module
@@ -226,6 +227,12 @@ class FakeResponse:
     content = [FakeBlock()]
 
 
+def fake_client(messages, api_key="test-key"):
+    """Stands in for anthropic.AsyncAnthropic so tests never call the real API."""
+    return type("FakeClient", (), {"api_key": api_key, "auth_token": None,
+                                   "beta": type("Beta", (), {"messages": messages})()})()
+
+
 class FakeMessages:
     def __init__(self):
         self.calls = []
@@ -237,7 +244,7 @@ class FakeMessages:
 
 async def test_assistant_answers_from_the_users_own_scan(client, monkeypatch):
     fake = FakeMessages()
-    monkeypatch.setattr(assistant_module, "client", type("C", (), {"beta": type("B", (), {"messages": fake})()})())
+    monkeypatch.setattr(assistant_module, "client", fake_client(fake))
     headers = await signup(client)
     job = await run_job(client, headers)
     res = await client.post("/assistant", headers=headers, json={"message": "What is HSTS?", "scan_id": job["scan"]["id"]})
@@ -248,7 +255,7 @@ async def test_assistant_answers_from_the_users_own_scan(client, monkeypatch):
 
 async def test_assistant_cannot_read_other_users_scans(client, monkeypatch):
     fake = FakeMessages()
-    monkeypatch.setattr(assistant_module, "client", type("C", (), {"beta": type("B", (), {"messages": fake})()})())
+    monkeypatch.setattr(assistant_module, "client", fake_client(fake))
     owner = await signup(client)
     other = await signup(client, email="other@example.com")
     job = await run_job(client, owner)
@@ -257,14 +264,22 @@ async def test_assistant_cannot_read_other_users_scans(client, monkeypatch):
 
 
 async def test_assistant_not_configured_returns_503(client, monkeypatch):
-    class Failing:
-        async def create(self, **kwargs):
-            raise anthropic.AnthropicError("no API key")
-
-    monkeypatch.setattr(assistant_module, "client", type("C", (), {"beta": type("B", (), {"messages": Failing()})()})())
+    fake = FakeMessages()
+    monkeypatch.setattr(assistant_module, "client", fake_client(fake, api_key=None))
     headers = await signup(client)
     res = await client.post("/assistant", headers=headers, json={"message": "hi"})
-    assert res.status_code == 503
+    assert res.status_code == 503 and fake.calls == []  # no request is even attempted
+
+
+async def test_assistant_api_errors_become_friendly_messages(client, monkeypatch):
+    class Failing:
+        async def create(self, **kwargs):
+            raise anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com"))
+
+    monkeypatch.setattr(assistant_module, "client", fake_client(Failing()))
+    headers = await signup(client)
+    res = await client.post("/assistant", headers=headers, json={"message": "hi"})
+    assert res.status_code == 502 and "could not be reached" in res.json()["detail"]
 
 
 # ---------- SecureSphere's own security headers ----------

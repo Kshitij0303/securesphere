@@ -300,7 +300,7 @@ async def test_site_without_https_gets_a_clear_message(client, monkeypatch):
     headers = await signup(client)
     job = await run_job(client, headers, "nohttps.example")
     assert job["status"] == "error"
-    assert "does not answer on HTTPS" in job["error"]
+    assert job["error"] == "nohttps.example has no secure (HTTPS) version, so there is nothing to scan."
 
 
 async def test_really_slow_scan_says_it_took_too_long(client, monkeypatch):

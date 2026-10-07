@@ -14,7 +14,7 @@ def clean_domain(raw: str) -> str:
     d = re.sub(r"^https?://", "", d)
     d = d.split("/")[0].split("?")[0].split(":")[0]
     if not HOST_RE.match(d):
-        raise HTTPException(400, "Enter a valid public domain, for example example.com")
+        raise HTTPException(400, "That doesn't look like a website address. Try something like example.com")
     return d
 
 
@@ -26,10 +26,10 @@ def assert_public(domain: str) -> str:
     try:
         infos = socket.getaddrinfo(domain, 443, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        raise HTTPException(400, "This domain could not be resolved")
+        raise HTTPException(400, f"{domain} doesn't exist. Check the spelling and try again.")
     addresses = [info[4][0] for info in infos]
     for address in addresses:
         if not ipaddress.ip_address(address).is_global:
-            raise HTTPException(400, "Private or internal addresses cannot be scanned")
+            raise HTTPException(400, f"{domain} points to a private network, so it can't be scanned.")
     ipv4 = [a for a in addresses if ipaddress.ip_address(a).version == 4]
     return (ipv4 or addresses)[0]

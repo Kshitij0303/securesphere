@@ -30,15 +30,12 @@ def _run_scanner(domain: str, ip: str, progress):
 
 
 def _failure_message(domain: str, error: BaseException | None) -> str:
-    """A plain-English reason why the site could not be scanned."""
+    """A short, plain reason why the site could not be scanned."""
     if isinstance(error, ssl.SSLError):
-        return (f"{domain} answered, but no secure connection could be set up. It may only support very old "
-                "encryption that modern software refuses to use.")
+        return f"{domain} has a secure (HTTPS) version, but it is broken, so it can't be scanned."
     if isinstance(error, (TimeoutError, ConnectionRefusedError)):
-        return f"{domain} does not answer on HTTPS (port 443). The site may not support HTTPS at all."
-    if isinstance(error, OSError):
-        return f"Could not connect to {domain} over HTTPS. The site may be down or not support HTTPS."
-    return f"Could not scan {domain}. It may be unreachable or not serving HTTPS."
+        return f"{domain} has no secure (HTTPS) version, so there is nothing to scan."
+    return f"Can't reach {domain} right now. Check the address and try again."
 
 
 async def _recent_result(domain: str) -> dict | None:

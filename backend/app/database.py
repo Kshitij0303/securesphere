@@ -3,7 +3,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.config import DB_NAME, MONGO_URL, UNVERIFIED_ACCOUNT_DAYS
 
-client = AsyncIOMotorClient(MONGO_URL, tz_aware=True)
+# Give up after 5 s (default 30 s): a database outage must answer quickly with a clear error, not hang.
+client = AsyncIOMotorClient(MONGO_URL, tz_aware=True, serverSelectionTimeoutMS=5000)
 db = client[DB_NAME]
 
 

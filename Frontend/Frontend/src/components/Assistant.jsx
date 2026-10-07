@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { askAssistant } from "../api";
 import { useScan } from "../ScanContext";
 
@@ -17,6 +18,10 @@ export default function Assistant() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages, open]);
+
+  // Close the chat when the user moves to another page, so it never covers that page's links and buttons.
+  const { pathname } = useLocation();
+  useEffect(() => setOpen(false), [pathname]);
 
   // The assistant explains a scan, so it appears only once there is one (a finished scan or an opened report).
   if (!lastScan) return null;

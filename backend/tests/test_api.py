@@ -367,3 +367,42 @@ async def test_unknown_domain_still_reports_the_typed_name(client, monkeypatch):
     headers = await signup(client)
     job = await run_job(client, headers, "typo.example")
     assert job["status"] == "error" and job["error"].startswith("typo.example doesn't exist")
+
+
+
+async def test_domain_with_a_non_standard_port_is_refused_clearly(client):
+    headers = await signup(client)
+    res = await client.post("/scan/jobs", headers=headers, json={"domain": "example.com:8443"})
+    assert res.status_code == 400 and "standard HTTPS port (443)" in res.json()["detail"]
+    ok = await client.post("/scan/jobs", headers=headers, json={"domain": "https://Example.com:443/path#x"})
+    assert ok.status_code == 202 and ok.json()["domain"] == "example.com"
+
+
+
+async def test_assistant_status_tells_the_website_whether_ai_is_set_up(client, monkeypatch):
+    headers = await signup(client)
+    monkeypatch.setattr(assistant_module, "client", fake_client(FakeMessages(), api_key=None))
+    assert (await client.get("/assistant/status", headers=headers)).json() == {"ai_enabled": False}
+    monkeypatch.setattr(assistant_module, "client", fake_client(FakeMessages(), api_key="key"))
+    assert (await client.get("/assistant/status", headers=headers)).json() == {"ai_enabled": True}
+    assert (await client.get("/assistant/status")).status_code == 401
+
+
+
+async def test_database_outage_gives_a_clear_503_not_a_crash(client, monkeypatch):
+    from pymongo.errors import ServerSelectionTimeoutError
+
+    class DownCollection:
+        def __getattr__(self, name):
+            async def fail(*args, **kwargs):
+                raise ServerSelectionTimeoutError("database down")
+            return fail
+
+    class DownDatabase:
+        def __getattr__(self, name):
+            return DownCollection()
+
+    monkeypatch.setattr("app.routers.auth.db", DownDatabase())
+    res = await client.post("/auth/login", json={"email": "a@gmail.com", "password": "password123"})
+    assert res.status_code == 503 and "database is not reachable" in res.json()["detail"]
+    assert "Traceback" not in res.text

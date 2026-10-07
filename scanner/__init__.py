@@ -120,7 +120,10 @@ def run_scan(domain: str, port: int = 443, ip: str | list[str] | None = None,
     untested = []
     if all(v is None for v in tls.values()):
         untested.append("TLS versions")
-    if all(v is None for v in headers["headers"].values()):
+    redirects_to = headers["details"].get("redirects_to")
+    if redirects_to:
+        untested.append(f"Page headers (this site sends visitors to {redirects_to}: scan that address)")
+    elif all(v is None for v in headers["headers"].values()):
         blocked = headers["details"].get("blocked_by")
         untested.append(f"Security headers and cookies (blocked by {blocked})" if blocked else "Security headers and cookies")
     if redirect.get("http_open") is None:

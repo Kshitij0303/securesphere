@@ -1,23 +1,42 @@
 """Module 14: Puts everything together. Run with:  uvicorn app.main:app --reload"""
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pymongo.errors import PyMongoError
 
 from app.config import CORS_ORIGINS
+from app import database
 from app.database import create_indexes
 from app.routers import alerts, assistant, auth, monitor, password_reset, scan, users
 from app.scheduler import scheduler, start_scheduler
 
 logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("securesphere")
+
+
+async def _prepare_database() -> None:
+    """Create the indexes; if the database is down, keep retrying in the background instead of refusing to
+    start (a short database hiccup during a restart must not take the whole site down)."""
+    while True:
+        try:
+            await create_indexes()
+            log.info("Database ready")
+            return
+        except PyMongoError as e:
+            log.error("Database not reachable (%s); retrying in 30 s", type(e).__name__)
+            await asyncio.sleep(30)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await create_indexes()
+    setup = asyncio.create_task(_prepare_database())
     start_scheduler()
     yield
+    setup.cancel()
     scheduler.shutdown(wait=False)
 
 
@@ -50,6 +69,13 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+@app.exception_handler(PyMongoError)
+async def database_unavailable(request: Request, exc: PyMongoError):
+    log.error("Database error on %s %s: %s", request.method, request.url.path, type(exc).__name__)
+    return JSONResponse(status_code=503, content={
+        "detail": "The database is not reachable right now. Please try again in a minute."})
+
+
 app.include_router(auth.router)
 app.include_router(password_reset.router)
 app.include_router(scan.router)
@@ -61,4 +87,10 @@ app.include_router(assistant.router)
 
 @app.get("/health", tags=["system"])
 async def health():
-    return {"status": "ok"}
+    """Always 200 while the server runs (the host restarts it otherwise); says whether the database answers."""
+    try:
+        await asyncio.wait_for(database.db.command("ping"), timeout=3)
+        db_state = "ok"
+    except Exception:
+        db_state = "unreachable"
+    return {"status": "ok", "database": db_state}

@@ -185,7 +185,7 @@ def test_firewall_challenge_page_is_could_not_check_not_missing(monkeypatch):
     import scanner.headers as h
     challenge = email.message.Message()
     challenge["X-Vercel-Mitigated"] = "challenge"
-    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (challenge, "https://x.vercel.app/", 403))
+    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (challenge, "https://x.vercel.app/", 403, None))
     result = h.check_headers("x.vercel.app")
     assert set(result["headers"].values()) == {None}
     assert result["details"] == {"blocked_by": "Vercel bot protection"}
@@ -220,7 +220,7 @@ def test_firewall_block_on_http_is_not_a_missing_redirect():
 def test_plain_403_home_page_counts_as_blocked(monkeypatch):
     import email.message
     import scanner.headers as h
-    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (email.message.Message(), "https://x.example/", 403))
+    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (email.message.Message(), "https://x.example/", 403, None))
     result = h.check_headers("x.example")
     assert result["details"] == {"blocked_by": "the site's firewall (HTTP 403)"}
     assert set(result["headers"].values()) == {None}
@@ -241,5 +241,21 @@ def test_amazon_style_202_bot_page_counts_as_blocked(monkeypatch):
     """amazon.com answers automated visitors with "202 Accepted" and a robot-check page, not its home page."""
     import email.message
     import scanner.headers as h
-    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (email.message.Message(), "https://amazon.example/", 202))
+    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (email.message.Message(), "https://amazon.example/", 202, None))
     assert h.check_headers("amazon.example")["details"] == {"blocked_by": "the site's firewall (HTTP 202)"}
+
+
+
+def test_site_that_redirects_elsewhere_is_not_reported_as_missing_headers(monkeypatch):
+    """hdfcbank.com only redirects to www.hdfc.bank.in: its page headers were wrongly reported as missing."""
+    import email.message
+    import scanner.headers as h
+    redirect = email.message.Message()
+    redirect["Location"] = "https://www.hdfc.bank.in/"
+    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (redirect, "https://www.hdfcbank.com/", 301, "www.hdfc.bank.in"))
+    result = h.check_headers("hdfcbank.com")
+    assert result["details"]["redirects_to"] == "www.hdfc.bank.in"
+    assert result["headers"]["csp"] is None and result["headers"]["x_frame_options"] is None
+    assert result["headers"]["hsts"] is False  # HSTS still matters on the site's own response
+    ids = findings_for(headers=result)
+    assert "CSP_MISSING" not in ids and "X_FRAME_OPTIONS_MISSING" not in ids and "HSTS_MISSING" in ids

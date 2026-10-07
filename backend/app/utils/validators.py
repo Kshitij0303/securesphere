@@ -15,7 +15,12 @@ def clean_domain(raw: str) -> str:
     """'https://Example.com/path' -> 'example.com'. Rejects anything that is not a hostname."""
     d = raw.strip().lower()
     d = re.sub(r"^https?://", "", d)
-    d = d.split("/")[0].split("?")[0].split(":")[0]
+    d = d.split("/")[0].split("?")[0].split("#")[0]
+    d, _, port = d.partition(":")
+    if port and port != "443":
+        # The scan pipeline, history and monitoring all work on the standard HTTPS port only.
+        raise HTTPException(400, f"SecureSphere checks websites on the standard HTTPS port (443). "
+                                 f"Remove :{port} and try again.")
     if not HOST_RE.match(d):
         raise HTTPException(400, "That doesn't look like a website address. Try something like example.com")
     return d

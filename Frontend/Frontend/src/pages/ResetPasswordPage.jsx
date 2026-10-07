@@ -53,7 +53,7 @@ export default function ResetPasswordPage() {
           <Link to="/login" className="mt-2 inline-block font-medium text-teal-700 underline">Log in with your new password</Link>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
           <label className="block">
             New password
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className={inputClass} />

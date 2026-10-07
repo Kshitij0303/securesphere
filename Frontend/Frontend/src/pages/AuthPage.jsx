@@ -39,7 +39,7 @@ export default function AuthPage({ mode, onAuth }) {
   return (
     <div className="max-w-sm">
       <h1 className="text-3xl font-bold">{isLogin ? "Log in" : "Create your account"}</h1>
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
         {!isLogin && (
           <label className="block">
             Name

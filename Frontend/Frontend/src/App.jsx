@@ -51,6 +51,14 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(Boolean(getToken()));
   const [profile, setProfile] = useState(null);
   const [unread, setUnread] = useState(0);
+  const [serverSlow, setServerSlow] = useState(false);
+
+  // Shown while the free backend host wakes up (first request after it slept can take up to a minute).
+  useEffect(() => {
+    const onSlow = (e) => setServerSlow(e.detail);
+    window.addEventListener("server-slow", onSlow);
+    return () => window.removeEventListener("server-slow", onSlow);
+  }, []);
   const navigate = useNavigate();
   const location = useLocation();
   const { setLastScan } = useScan();
@@ -124,6 +132,13 @@ export default function App() {
           )}
         </nav>
       </header>
+      {serverSlow && (
+        <div role="status" className="border-b border-sky-200 bg-sky-50">
+          <p className="mx-auto max-w-4xl px-4 py-2 text-sm text-sky-900">
+            The SecureSphere server is waking up after being idle. This can take up to a minute; your request will continue by itself.
+          </p>
+        </div>
+      )}
       {loggedIn && profile && !profile.email_verified && location.pathname !== "/verify-email" && (
         <VerifyBanner email={profile.email} />
       )}

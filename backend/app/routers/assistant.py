@@ -61,6 +61,12 @@ async def _scan_context(scan_id: str | None, user_id: str) -> str:
     return "<scan_data>\n" + json.dumps(data, default=str, indent=1) + "\n</scan_data>"
 
 
+@router.get("/status")
+async def status(user: dict = Depends(current_user)):
+    """Lets the website skip the AI entirely (no failing requests) when no API key is set."""
+    return {"ai_enabled": _configured()}
+
+
 @router.post("")
 async def ask(body: AssistantIn, user: dict = Depends(verified_user)):
     if not _configured():

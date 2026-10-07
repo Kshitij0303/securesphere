@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
       ) : (
         <>
           <p className="mt-2 text-slate-600">Enter your account email and we will send you a link to choose a new password.</p>
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
             <label className="block">
               Email
               <input

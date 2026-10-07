@@ -222,6 +222,11 @@ export default function ScanResults({ data, compare = null }) {
           <Row label="X-Frame-Options" ok={h.x_frame_options} value={present(h.x_frame_options)} />
           <Row label="X-Content-Type-Options" ok={h.x_content_type_options} value={present(h.x_content_type_options)} />
           <Row label="Referrer-Policy" ok={h.referrer_policy} value={present(h.referrer_policy)} />
+          {hd.redirects_to && (
+            <p className="mt-2 text-sm text-amber-800">
+              This site sends visitors to {hd.redirects_to}, so its page headers were not checked here. Scan {hd.redirects_to} to see them.
+            </p>
+          )}
           {hd.blocked_by && (
             <p className="mt-2 text-sm text-amber-800">
               The site's firewall ({hd.blocked_by}) blocked the scanner's page request, so headers and cookies could not be checked. Try again later.

@@ -73,12 +73,14 @@ def _same_site(a: str, b: str) -> bool:
 
 def _fetch_home_page(host: str, ip: str | None):
     """GET https://host/ on the pinned IP and follow redirects that stay on the same site
-    (/ -> /en/, example.com -> www.example.com). Returns (headers, final_url)."""
+    (/ -> /en/, example.com -> www.example.com). Returns (headers, final_url, status, leaves_to), where
+    leaves_to is the other site's name when the site sends visitors elsewhere (hdfcbank.com -> www.hdfc.bank.in)."""
     # Certificate problems are reported by cert.py, so do not let them hide the headers.
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     current_host, current_ip, path = host, ip, "/"
+    leaves_to = None  # set when the site sends visitors to a different site
     for _ in range(MAX_REDIRECTS + 1):
         conn = PinnedHTTPSConnection(current_host, current_ip, ctx, TIMEOUT)
         try:
@@ -93,12 +95,13 @@ def _fetch_home_page(host: str, ip: str | None):
             break  # a page (any status: 403/404 pages still carry the site's headers), or a downgrade
         next_host = target.hostname or current_host
         if not _same_site(next_host, host):
-            break  # never follow redirects to other sites
+            leaves_to = next_host  # never follow redirects to other sites
+            break
         if next_host != current_host:
             current_ip = resolve_public_all(next_host)  # a new name gets its own safety check
         current_host = next_host
         path = (target.path or "/") + (f"?{target.query}" if target.query else "")
-    return headers, f"https://{current_host}{path}", status
+    return headers, f"https://{current_host}{path}", status, leaves_to
 
 
 BLOCKED_CODES = (202, 401, 403, 429, 503)  # 202: Amazon-style "are you a robot" pages
@@ -121,7 +124,7 @@ def _blocked_by(found, status: int) -> str | None:
 def check_headers(host: str, ip: str | None = None) -> dict:
     unknown = {key: None for key in HEADERS}
     try:
-        found, final_url, status = _fetch_home_page(host, ip)
+        found, final_url, status, leaves_to = _fetch_home_page(host, ip)
     except (OSError, http.client.HTTPException, ValueError):
         return {"headers": unknown, "details": {}, "cookies": []}
     blocker = _blocked_by(found, status)
@@ -135,6 +138,17 @@ def check_headers(host: str, ip: str | None = None) -> dict:
     max_age, include_sub, preload = _parse_hsts(hsts_value) if hsts_value else (None, False, False)
     if hsts_value and not max_age:
         headers["hsts"] = False
+
+    if leaves_to:
+        # The site only redirects to another site: a redirect has no page, so CSP, X-Frame-Options and the
+        # other page headers do not apply here. HSTS does (it is sent with every HTTPS response), so it stays.
+        return {
+            "headers": {**unknown, "hsts": headers["hsts"]},
+            "details": {"final_url": final_url, "redirects_to": leaves_to, "hsts_max_age": max_age,
+                        "hsts_include_subdomains": include_sub, "hsts_preload": preload,
+                        "hsts_max_age_too_short": bool(headers["hsts"] and max_age < HSTS_MIN_MAX_AGE)},
+            "cookies": [_parse_cookie(c) for c in (found.get_all("Set-Cookie") or [])][:20],
+        }
 
     # CSP sent only as "report-only" reports problems but blocks nothing.
     csp_value = found.get("Content-Security-Policy") or ""

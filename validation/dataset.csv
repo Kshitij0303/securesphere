@@ -38,3 +38,4 @@ httpforever.com,likely-weak,no HTTPS,"The site explicitly instructs users to use
 info.cern.ch,likely-weak,no HTTPS,"This is the historical first website and is useful as a legacy HTTP test case."
 old.iitbhu.ac.in,likely-weak,unknown,"An old IIT(BHU) subdomain is a useful legacy-site candidate for testing certificate and configuration handling."
 old.in,likely-weak,unknown,"This legacy domain is a useful candidate for testing how the scanner handles older or redirected web infrastructure."
+paytm.com,indian-popular,unknown,"Large Indian payments and financial-services platform."

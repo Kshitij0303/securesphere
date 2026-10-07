@@ -29,9 +29,21 @@ export function clearToken() {
   }
 }
 
+// The free backend host sleeps when idle and needs up to a minute to wake up. Any request slower than this
+// shows a "server is waking up" banner (App.jsx listens for the "server-slow" event).
+const SLOW_MS = 4000;
+let slowRequests = 0;
+const announceSlow = () => window.dispatchEvent(new CustomEvent("server-slow", { detail: slowRequests > 0 }));
+
 async function request(path, options = {}) {
   const token = getToken();
   let res;
+  let markedSlow = false;
+  const timer = setTimeout(() => {
+    markedSlow = true;
+    slowRequests += 1;
+    announceSlow();
+  }, SLOW_MS);
   try {
     res = await fetch(`${API_URL}${path}`, {
       ...options,
@@ -41,7 +53,15 @@ async function request(path, options = {}) {
       },
     });
   } catch {
-    throw new Error("Could not reach the server. Check that the backend is running.");
+    throw new Error(
+      "Could not reach the SecureSphere server. It may be starting up or your internet may be down. Please try again in a minute."
+    );
+  } finally {
+    clearTimeout(timer);
+    if (markedSlow) {
+      slowRequests -= 1;
+      announceSlow();
+    }
   }
   if (!res.ok) {
     let message = "Something went wrong on the server. Try again.";
@@ -342,8 +362,21 @@ export async function markAlertRead(id) {
 // Without an AI key on the server (or when it is unreachable) the built-in answers in assistantRules.js
 // are used instead: free, offline, and based only on the real scan.
 // history: earlier turns as [{ role: "user" | "assistant", content }]. Returns { reply, ai }.
+let aiEnabled = null; // asked once per page load: is the AI set up on the server?
+
+async function serverHasAI() {
+  if (aiEnabled === null) {
+    try {
+      aiEnabled = (await request("/assistant/status")).ai_enabled;
+    } catch {
+      aiEnabled = false;
+    }
+  }
+  return aiEnabled;
+}
+
 export async function askAssistant(message, scan, history = []) {
-  if (!USE_MOCK && getToken()) {
+  if (!USE_MOCK && getToken() && (await serverHasAI())) {
     try {
       const res = await request("/assistant", {
         method: "POST",
@@ -364,7 +397,8 @@ export async function askAssistant(message, scan, history = []) {
 const DOMAIN_REGEX = /^(?!-)([a-z0-9-]+\.)+[a-z]{2,}(:\d{1,5})?$/i;
 
 export function cleanDomain(input) {
-  return input.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  // Same rules as the backend: no protocol, no path or query, lowercase (domain names ignore case).
+  return input.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/[/?#].*$/, "");
 }
 export function isValidDomain(domain) {
   return DOMAIN_REGEX.test(domain);

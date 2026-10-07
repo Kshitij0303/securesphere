@@ -59,7 +59,9 @@ def fetch_certificate_chain(host: str, port: int = 443, ip: str | None = None) -
     )
     scanner = Scanner()
     scanner.queue_scans([request])
-    result = next(iter(scanner.get_results()), None)
+    # Read the results to the end: sslyze only stops its worker threads when the generator finishes
+    # (taking just the first item leaked a thread and ~11 MB per scan).
+    result = next(iter(list(scanner.get_results())), None)
     if result is None or result.scan_status != ServerScanStatusEnum.COMPLETED:
         return None
     info = _attempt_result(result.scan_result.certificate_info)
@@ -84,7 +86,9 @@ def deep_scan(host: str, port: int = 443, ip: str | None = None) -> dict | None:
     )
     scanner = Scanner()
     scanner.queue_scans([request])
-    result = next(iter(scanner.get_results()), None)
+    # Read the results to the end: sslyze only stops its worker threads when the generator finishes
+    # (taking just the first item leaked a thread and ~11 MB per scan).
+    result = next(iter(list(scanner.get_results())), None)
     if result is None or result.scan_status != ServerScanStatusEnum.COMPLETED:
         log.warning("sslyze could not scan %s: %s", host, result and result.connectivity_error_trace)
         return None

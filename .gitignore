@@ -18,3 +18,8 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Test output
+test-results/
+playwright-report/
+validation/api_matrix_*.json

@@ -123,6 +123,8 @@ def run_scan(domain: str, port: int = 443, ip: str | list[str] | None = None,
     redirects_to = headers["details"].get("redirects_to")
     if redirects_to:
         untested.append(f"Page headers (this site sends visitors to {redirects_to}: scan that address)")
+    elif headers["details"].get("https_no_page"):
+        untested.append("Security headers and cookies (the site serves no page over HTTPS)")
     elif all(v is None for v in headers["headers"].values()):
         blocked = headers["details"].get("blocked_by")
         untested.append(f"Security headers and cookies (blocked by {blocked})" if blocked else "Security headers and cookies")

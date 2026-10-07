@@ -259,3 +259,28 @@ def test_site_that_redirects_elsewhere_is_not_reported_as_missing_headers(monkey
     assert result["headers"]["hsts"] is False  # HSTS still matters on the site's own response
     ids = findings_for(headers=result)
     assert "CSP_MISSING" not in ids and "X_FRAME_OPTIONS_MISSING" not in ids and "HSTS_MISSING" in ids
+
+
+
+def test_server_reachable_only_with_obsolete_ciphers_is_critical():
+    """rc4.badssl.com: only sslyze's old OpenSSL could connect, so the server offers nothing modern."""
+    ids = findings_for(cert={"fetched_with": "sslyze"})
+    assert "NO_MODERN_CIPHERS" in ids
+    findings = [{"id": "NO_MODERN_CIPHERS", "severity": "critical", "evidence": "x"}]
+    assert calculate_score(findings)[:2] == (59, "F")
+
+
+
+def test_https_that_serves_no_page_is_reported(monkeypatch):
+    """neverssl.com accepts TLS but closes the connection without a page; asked twice before concluding."""
+    import http.client
+    import scanner.headers as h
+    calls = []
+
+    def closes(host, ip):
+        calls.append(1)
+        raise http.client.RemoteDisconnected("Remote end closed connection without response")
+    monkeypatch.setattr(h, "_fetch_home_page", closes)
+    result = h.check_headers("neverssl.example")
+    assert len(calls) == 2 and result["details"] == {"https_no_page": True}
+    assert "HTTPS_NO_PAGE" in findings_for(headers=result)

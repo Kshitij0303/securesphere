@@ -72,6 +72,13 @@ EXPLANATIONS = {
         "impact": "Small: TLS 1.2 is still safe, but the site misses the improvements of 1.3.",
         "fix": "Enable TLS 1.3 in the web server settings (supported by recent nginx, Apache and IIS).",
     },
+    "NO_MODERN_CIPHERS": {
+        "title": "No modern encryption",
+        "problem": "The server only accepts encryption methods (such as RC4) that every modern browser has removed.",
+        "why_it_matters": "These methods are broken, and current browsers refuse to use them at all.",
+        "impact": "Most visitors cannot open the site securely; anyone who can is protected by breakable encryption.",
+        "fix": "Update the web server's TLS settings to allow modern ciphers (AES-GCM, ChaCha20) with TLS 1.2 and 1.3, and remove RC4, 3DES and DES.",
+    },
     "WEAK_CIPHERS": {
         "title": "Weak ciphers are accepted",
         "problem": "The server still accepts encryption methods that are known to be breakable.",
@@ -85,6 +92,13 @@ EXPLANATIONS = {
         "why_it_matters": "Without it, one stolen server key can unlock recordings of old traffic.",
         "impact": "Past conversations could be decrypted if the key ever leaks.",
         "fix": "Prefer ECDHE cipher suites and enable TLS 1.3, which always has forward secrecy.",
+    },
+    "HTTPS_NO_PAGE": {
+        "title": "HTTPS serves no page",
+        "problem": "The server accepts a secure (HTTPS) connection but then closes it without sending the website.",
+        "why_it_matters": "Visitors who use https:// get an error, so the site is in practice only available without encryption.",
+        "impact": "Everything visitors see and send travels unencrypted over plain HTTP.",
+        "fix": "Configure the web server to serve the site over HTTPS (port 443), then redirect http:// to https://.",
     },
     "HSTS_MISSING": {
         "title": "HSTS header is missing",

@@ -123,10 +123,17 @@ def _blocked_by(found, status: int) -> str | None:
 
 def check_headers(host: str, ip: str | None = None) -> dict:
     unknown = {key: None for key in HEADERS}
-    try:
-        found, final_url, status, leaves_to = _fetch_home_page(host, ip)
-    except (OSError, http.client.HTTPException, ValueError):
-        return {"headers": unknown, "details": {}, "cookies": []}
+    for attempt in (1, 2):
+        try:
+            found, final_url, status, leaves_to = _fetch_home_page(host, ip)
+            break
+        except http.client.RemoteDisconnected:
+            # The secure connection works but the server closes it without sending a page (neverssl.com).
+            # Asked twice so that one dropped connection is not mistaken for it.
+            if attempt == 2:
+                return {"headers": unknown, "details": {"https_no_page": True}, "cookies": []}
+        except (OSError, http.client.HTTPException, ValueError):
+            return {"headers": unknown, "details": {}, "cookies": []}
     blocker = _blocked_by(found, status)
     if blocker:
         return {"headers": unknown, "details": {"blocked_by": blocker}, "cookies": []}

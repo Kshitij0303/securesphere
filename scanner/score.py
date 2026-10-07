@@ -16,8 +16,8 @@ PENALTY = {"critical": 30, "high": 15, "medium": 8, "low": 3}
 CATEGORIES = (
     ("certificate", 40, ("CERT_",)),
     ("vulnerabilities", 30, ("HEARTBLEED", "CCS_INJECTION", "ROBOT_")),
-    ("protocols", 25, ("SSL_", "TLS_", "NO_MODERN_TLS", "WEAK_CIPHERS", "NO_FORWARD_SECRECY")),
-    ("enforcement", 20, ("NO_HTTPS_REDIRECT", "HSTS_", "VARIANT_")),
+    ("protocols", 25, ("SSL_", "TLS_", "NO_MODERN_TLS", "NO_MODERN_CIPHERS", "WEAK_CIPHERS", "NO_FORWARD_SECRECY")),
+    ("enforcement", 20, ("NO_HTTPS_REDIRECT", "HTTPS_NO_PAGE", "HSTS_", "VARIANT_")),
     ("headers", 15, ("CSP_", "X_FRAME", "X_CONTENT", "REFERRER")),
     ("cookies", 10, ("COOKIE_",)),
     ("dns", 3, ("CAA_",)),
@@ -34,10 +34,10 @@ def category_of(finding_id: str) -> tuple[str, int]:
 CAPS = {
     # grade F at best
     "CERT_EXPIRED": 59, "CERT_SELF_SIGNED": 59, "CERT_UNTRUSTED": 59, "CERT_HOSTNAME_MISMATCH": 59,
-    "CERT_WEAK_KEY": 59, "NO_MODERN_TLS": 59, "SSL_2_ENABLED": 59, "SSL_3_ENABLED": 59,
+    "CERT_WEAK_KEY": 59, "NO_MODERN_TLS": 59, "NO_MODERN_CIPHERS": 59, "SSL_2_ENABLED": 59, "SSL_3_ENABLED": 59,
     "HEARTBLEED": 59, "CCS_INJECTION": 59, "ROBOT_VULNERABLE": 59,
     # grade C at best
-    "WEAK_CIPHERS": 79, "CERT_WEAK_SIGNATURE": 79, "NO_HTTPS_REDIRECT": 79,
+    "WEAK_CIPHERS": 79, "CERT_WEAK_SIGNATURE": 79, "NO_HTTPS_REDIRECT": 79, "HTTPS_NO_PAGE": 79,
     # grade B at best
     "TLS_1_0_ENABLED": 89, "TLS_1_1_ENABLED": 89,
 }
@@ -85,6 +85,10 @@ def build_findings(cert: dict, tls: dict, ciphers: dict, headers: dict, redirect
         add("TLS_1_0_ENABLED", "high", "Server accepts TLS 1.0")
     if tls.get("1.1") is True:
         add("TLS_1_1_ENABLED", "high", "Server accepts TLS 1.1")
+    if cert.get("fetched_with") == "sslyze":
+        # Not even a modern TLS library with every cipher it still has could connect; only sslyze's old one
+        # could. So the server accepts nothing but encryption browsers have removed (e.g. RC4).
+        add("NO_MODERN_CIPHERS", "critical", "The server only accepts encryption methods that modern browsers have removed (such as RC4)")
     if tls.get("1.2") is False and tls.get("1.3") is False:
         add("NO_MODERN_TLS", "critical", "Server supports neither TLS 1.2 nor TLS 1.3")
     elif tls.get("1.3") is False:
@@ -111,6 +115,8 @@ def build_findings(cert: dict, tls: dict, ciphers: dict, headers: dict, redirect
 
     # Headers
     present, details = headers.get("headers", {}), headers.get("details", {})
+    if details.get("https_no_page"):
+        add("HTTPS_NO_PAGE", "high", "The server accepts a secure connection but closes it without sending any page")
     if present.get("hsts") is False:
         add("HSTS_MISSING", "medium", "Strict-Transport-Security header absent or invalid")
     elif details.get("hsts_max_age_too_short"):

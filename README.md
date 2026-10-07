@@ -62,7 +62,7 @@ self-signed, untrusted root, TLS 1.0/1.1, RC4, no HTTPS redirect) and check the 
    `ANTHROPIC_API_KEY`. Leave `CORS_ORIGINS` and `FRONTEND_URL` for step 4.
 3. **Website:** on [Vercel](https://vercel.com) import the same repository, set *Root Directory* to
    `Frontend/Frontend`, and add the environment variable `VITE_API_URL` = your Render address
-   (e.g. `https://securesphere-api.onrender.com`). If your Render address is different, also change it in the
+   (e.g. `https://securesphere-api-sjja.onrender.com`). If your Render address is different, also change it in the
    `connect-src` part of `Frontend/Frontend/vercel.json`.
 4. Back on Render, set `CORS_ORIGINS` and `FRONTEND_URL` to your Vercel address and redeploy.
 5. Scan your own Vercel address with SecureSphere: it should get a top score.

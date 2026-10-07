@@ -22,7 +22,11 @@ export default function Findings({ data }) {
                   {f.severity[0].toUpperCase() + f.severity.slice(1)}
                 </span>
                 <h3 className="font-semibold text-slate-900">{f.title}</h3>
-                {f.points_lost != null && <span className="ml-auto text-sm text-slate-500">−{f.points_lost} points</span>}
+                {f.points_lost != null && (
+                  <span className="ml-auto text-sm text-slate-500">
+                    {f.points_lost > 0 ? `−${f.points_lost} points` : "no extra points (category limit reached)"}
+                  </span>
+                )}
               </div>
               <dl className="mt-3 space-y-2 text-slate-800">
                 {f.evidence && f.evidence !== f.problem && (

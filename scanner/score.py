@@ -2,12 +2,33 @@
 These are SecureSphere's own rules, not an industry standard. Results of None (could not test)
 never create a finding and never cost points.
 
-Scoring works in two steps:
+Scoring works in three steps:
 1. Every finding costs points by severity (stored on the finding as "points_lost").
-2. Some problems are so serious that the score is capped, however good the rest is (like SSL Labs):
+2. Each category (certificate, protocols, headers, ...) can lose at most a set number of points (CATEGORIES).
+3. Some problems are so serious that the score is capped, however good the rest is (like SSL Labs):
    an expired certificate cannot score above 59 (grade F) even if everything else is perfect."""
 
 PENALTY = {"critical": 30, "high": 15, "medium": 8, "low": 3}
+
+# Each area of security can lose at most this many points, so one weakness reported in several ways
+# (TLS 1.0 and 1.1, a redirect missing on both www and non-www, one cookie missing three flags) cannot
+# push a site to 0 on its own. Finding ids are matched by prefix.
+CATEGORIES = (
+    ("certificate", 40, ("CERT_",)),
+    ("vulnerabilities", 30, ("HEARTBLEED", "CCS_INJECTION", "ROBOT_")),
+    ("protocols", 25, ("SSL_", "TLS_", "NO_MODERN_TLS", "WEAK_CIPHERS", "NO_FORWARD_SECRECY")),
+    ("enforcement", 20, ("NO_HTTPS_REDIRECT", "HSTS_", "VARIANT_")),
+    ("headers", 15, ("CSP_", "X_FRAME", "X_CONTENT", "REFERRER")),
+    ("cookies", 10, ("COOKIE_",)),
+    ("dns", 3, ("CAA_",)),
+)
+
+
+def category_of(finding_id: str) -> tuple[str, int]:
+    for name, limit, prefixes in CATEGORIES:
+        if finding_id.startswith(prefixes):
+            return name, limit
+    return "other", 100
 
 # finding id -> highest score allowed while that finding is present
 CAPS = {
@@ -134,9 +155,17 @@ def build_findings(cert: dict, tls: dict, ciphers: dict, headers: dict, redirect
 
 
 def calculate_score(findings: list[dict]) -> tuple[int, str, dict | None]:
-    """Returns (score, grade, cap). cap explains when a serious finding limited the score."""
-    for f in findings:
-        f["points_lost"] = PENALTY[f["severity"]]
+    """Returns (score, grade, cap). cap explains when a serious finding limited the score.
+
+    Most serious findings are charged first; once a category reaches its limit, further findings in it
+    cost nothing more. points_lost on each finding is what it really cost, so the list adds up to the score."""
+    used: dict[str, int] = {}
+    order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    for f in sorted(findings, key=lambda f: order[f["severity"]]):
+        name, limit = category_of(f["id"])
+        f["category"] = name
+        f["points_lost"] = min(PENALTY[f["severity"]], limit - used.get(name, 0))
+        used[name] = used.get(name, 0) + f["points_lost"]
     score = max(0, 100 - sum(f["points_lost"] for f in findings))
 
     cap = None

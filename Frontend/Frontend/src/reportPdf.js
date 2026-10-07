@@ -64,7 +64,7 @@ export function downloadReport(data, grade) {
 
   heading("Security headers");
   row("HSTS", header(h.hsts));
-  row("Content-Security-Policy", header(h.csp));
+  row("Content-Security-Policy", data.header_details?.csp_report_only ? "Report-only (blocks nothing) - Warning" : header(h.csp));
   row("X-Frame-Options", header(h.x_frame_options));
   row("X-Content-Type-Options", header(h.x_content_type_options));
   row("Referrer-Policy", header(h.referrer_policy));
@@ -83,13 +83,33 @@ export function downloadReport(data, grade) {
   row("OpenSSL CCS injection", vuln(v.ccs_injection));
   row("ROBOT", vuln(v.robot));
 
+  if (data.dns) {
+    const d = data.dns;
+    heading("DNS");
+    row("CAA record", d.caa == null ? "Could not check" : d.caa.present ? `Present (${d.caa.issuers.join(", ") || "no issuers listed"})` : "Missing");
+    row("DNSSEC", d.dnssec == null ? "Could not check" : d.dnssec ? "Enabled" : "Not enabled");
+    row("HSTS preload list", d.hsts_preloaded == null ? "Could not check" : d.hsts_preloaded ? "Listed" : "Not listed");
+  }
+  if (data.variant) {
+    const va = data.variant;
+    heading(`Other address: ${va.host}`);
+    if (va.exists === false) text("This address does not exist, so there is nothing to check.");
+    else if (va.exists == null) text("Could not check this address.");
+    else {
+      row("Serves HTTPS", yesNo(va.https_ok));
+      row("Valid certificate", yesNo(va.cert_valid));
+      row("HTTP to HTTPS redirect", va.redirects_to_https == null ? "HTTP not offered" : va.redirects_to_https ? "Yes" : "No - Warning");
+    }
+  }
+
   heading("Findings and fixes");
   const findings = [...(data.findings || [])].sort((a, b) => ORDER[a.severity] - ORDER[b.severity]);
   if (findings.length === 0) {
     text("No problems were found in this scan.");
   } else {
     findings.forEach((f, i) => {
-      text(`${i + 1}. [${f.severity.toUpperCase()}] ${f.title}${f.points_lost != null ? ` (-${f.points_lost} points)` : ""}`, { bold: true });
+      const pts = f.points_lost == null ? "" : f.points_lost > 0 ? ` (-${f.points_lost} points)` : " (no extra points: category limit reached)";
+      text(`${i + 1}. [${f.severity.toUpperCase()}] ${f.title}${pts}`, { bold: true });
       if (f.evidence && f.evidence !== f.problem) row("What we found", f.evidence);
       row("Problem", f.problem);
       row("Impact", f.impact);

@@ -136,3 +136,29 @@ def test_dns_and_variant_names():
 def test_scanner_refuses_internal_addresses():
     with pytest.raises(ValueError):
         resolve_public("localhost")
+
+
+def test_one_weakness_cannot_wipe_out_the_score():
+    """Real www.google.com findings: 12 problems used to add up to 104 points (score 0)."""
+    ids = [("TLS_1_0_ENABLED", "high"), ("TLS_1_1_ENABLED", "high"), ("WEAK_CIPHERS", "high"),
+           ("NO_HTTPS_REDIRECT", "high"), ("HSTS_MISSING", "medium"), ("CSP_REPORT_ONLY", "medium"),
+           ("COOKIE_NOT_SECURE", "medium"), ("VARIANT_NO_HTTPS_REDIRECT", "medium"),
+           ("X_CONTENT_TYPE_OPTIONS_MISSING", "low"), ("REFERRER_POLICY_MISSING", "low"),
+           ("COOKIE_NO_HTTPONLY", "low"), ("COOKIE_NO_SAMESITE", "low")]
+    findings = [{"id": i, "severity": s, "evidence": "x"} for i, s in ids]
+    score, grade, _cap = calculate_score(findings)
+    by_category = {}
+    for f in findings:
+        by_category[f["category"]] = by_category.get(f["category"], 0) + f["points_lost"]
+    assert by_category == {"protocols": 25, "enforcement": 20, "headers": 14, "cookies": 10}
+    assert score == 100 - 69 == 31 and grade == "F"
+    assert sum(f["points_lost"] for f in findings) == 100 - score  # the list adds up to the score
+
+
+def test_most_serious_finding_is_charged_first_within_a_category():
+    findings = [{"id": "COOKIE_NO_SAMESITE", "severity": "low", "evidence": "x"},
+                {"id": "COOKIE_NOT_SECURE", "severity": "medium", "evidence": "x"},
+                {"id": "COOKIE_NO_HTTPONLY", "severity": "low", "evidence": "x"}]
+    calculate_score(findings)
+    # Medium first (8), then the low ones in scan order until the limit of 10 is reached.
+    assert [f["points_lost"] for f in findings] == [2, 8, 0]

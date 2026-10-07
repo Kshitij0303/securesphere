@@ -12,7 +12,7 @@ function findingsFor(scan, ids) {
 }
 
 function describeFinding(f) {
-  const points = f.points_lost != null ? ` (−${f.points_lost} points)` : "";
+  const points = f.points_lost == null ? "" : f.points_lost > 0 ? ` (−${f.points_lost} points)` : " (no extra points: category limit reached)";
   return `• ${f.title}${points}\n  Found: ${f.evidence || f.problem}\n  Why it matters: ${f.impact || f.problem}\n  Fix: ${f.fix}`;
 }
 
@@ -181,9 +181,11 @@ const GENERAL = [
 
 function scoreAnswer(scan) {
   const findings = [...(scan.findings || [])].sort((a, b) => (b.points_lost || 0) - (a.points_lost || 0));
-  let text = `${scan.domain} scored ${scan.score} out of 100. Every site starts at 100 and loses points for each problem: critical −30, high −15, medium −8, low −3.`;
+  let text = `${scan.domain} scored ${scan.score} out of 100. Every site starts at 100 and loses points for each problem: critical −30, high −15, medium −8, low −3. Each area (certificate, protocols, headers, cookies...) can lose only a limited number of points, so one weakness cannot wipe out the whole score.`;
   if (!findings.length) return text + " No problems were found, so no points were lost.";
-  text += "\n\nPoints lost:\n" + findings.map((f) => `• −${f.points_lost ?? "?"} ${f.title}`).join("\n");
+  text += "\n\nPoints lost:\n" + findings
+    .map((f) => (f.points_lost === 0 ? `• 0 ${f.title} (category limit reached)` : `• −${f.points_lost ?? "?"} ${f.title}`))
+    .join("\n");
   if (scan.score_cap) {
     text += `\n\nThe score is also capped at ${scan.score_cap.max_score} because of: ${scan.score_cap.title}. Some problems are so serious that the site cannot get a better grade until they are fixed.`;
   }

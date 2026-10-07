@@ -1,0 +1,43 @@
+# Runs the whole app with one command:  docker compose up --build
+#   Website:  http://localhost:8080
+#   API:      http://localhost:8000  (docs at /docs)
+# Settings (JWT_SECRET, SMTP, ANTHROPIC_API_KEY, ...) come from backend/.env.
+# Stop any locally running backend/frontend first, or the ports will clash.
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    # No "ports:" on purpose: the database is only reachable by the backend, not from outside.
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file: backend/.env
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      CORS_ORIGINS: http://localhost:8080
+      FRONTEND_URL: http://localhost:8080
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo
+
+  frontend:
+    build:
+      context: Frontend/Frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    restart: unless-stopped
+    environment:
+      API_URL: http://localhost:8000
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:

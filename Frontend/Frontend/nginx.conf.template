@@ -1,0 +1,28 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    server_tokens off;
+
+    # SecureSphere's own security headers (the same ones it checks other sites for).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${API_URL}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    # Only meaningful when served over HTTPS (in production, behind your HTTPS proxy).
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Files in /assets have a content hash in their name, so they can be cached forever.
+    # (nginx drops the headers above inside a location that sets its own, so repeat the one that matters.)
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+    # Single-page app: every other path is handled by React Router.
+    location / {
+        try_files $uri /index.html;
+    }
+}

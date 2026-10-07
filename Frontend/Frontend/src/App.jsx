@@ -83,7 +83,10 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <nav className="mx-auto flex max-w-4xl flex-wrap items-center gap-1 px-4 py-3">
-          <NavLink to="/" end className="mr-4 text-xl font-bold">SecureSphere</NavLink>
+          <NavLink to="/" end aria-label="SecureSphere home" className="mr-4 shrink-0">
+            {/* The logo already contains the name, so no separate text. alt keeps it readable for screen readers. */}
+            <img src="/logo.png" alt="SecureSphere" width="167" height="40" className="h-9 w-auto sm:h-10" />
+          </NavLink>
           {loggedIn && (
             <>
               <NavLink to="/scan" className={linkClass}>Scan</NavLink>

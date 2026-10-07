@@ -3,7 +3,7 @@ import { askAssistant } from "../api";
 import { useScan } from "../ScanContext";
 
 const START = [{ role: "assistant", text: "Hi! Ask me anything about HTTPS security or your scan results. I will keep it simple." }];
-const SUGGESTIONS = ["What is TLS?", "Explain my score", "How do I fix the problems?", "What is HSTS?"];
+const SUGGESTIONS = ["Why is my score low?", "What should I fix first?", "Explain HSTS", "Are my cookies safe?"];
 
 export default function Assistant() {
   const { lastScan } = useScan();
@@ -52,7 +52,7 @@ export default function Assistant() {
               <p className="text-xs text-teal-100">
                 {lastScan ? `Using your scan of ${lastScan.domain}` : "Scan a site for personal answers"}
                 {mode === "ai" && " · AI answers"}
-                {mode === "basic" && " · basic answers (AI not set up)"}
+                {mode === "basic" && " · built-in answers"}
               </p>
             </div>
             <button onClick={() => setOpen(false)} aria-label="Close assistant" className="rounded px-2 py-1 hover:bg-teal-800">✕</button>

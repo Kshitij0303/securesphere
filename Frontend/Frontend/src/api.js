@@ -1,3 +1,4 @@
+import { builtInReply } from "./assistantRules";
 import { mockScan, mockHistory, mockAlerts } from "./mockData";
 
 // Talks to the real backend by default. Set VITE_USE_MOCK=true in a .env file to use fake data instead.
@@ -122,6 +123,7 @@ export function normalizeScan(raw) {
     findings: (raw.findings || []).map((f) => {
       const e = explanations[f.id] || {};
       return {
+        id: f.id,
         severity: f.severity,
         title: e.title || titleFromId(f.id),
         evidence: f.evidence,
@@ -326,51 +328,8 @@ export async function markAlertRead(id) {
 
 // ---- AI assistant ----
 // The backend asks Claude, which answers only from the user's saved scan (sent by id, never as data).
-// If the server has no AI set up (503) or cannot be reached, the simple keyword rules below answer instead.
-function mockReply(message, scan) {
-  const q = message.toLowerCase();
-  const has = (...words) => words.some((w) => q.includes(w));
-  const fixes = scan && scan.findings ? scan.findings : [];
-
-  if (has("hsts")) {
-    const status = scan ? ` On ${scan.domain}, HSTS is ${scan.headers.hsts ? "present" : "missing"}.` : "";
-    return "HSTS is a setting that tells browsers to always use the secure HTTPS version of your site, never the plain one." + status;
-  }
-  if (has("csp", "content-security", "content security")) {
-    const status = scan ? ` On ${scan.domain}, it is ${scan.headers.csp ? "present" : "missing"}.` : "";
-    return "A Content-Security-Policy tells browsers which scripts are allowed to run on your pages. It makes it harder for attackers to run their own code." + status;
-  }
-  if (has("tls", "ssl") && has("what", "mean", "explain")) {
-    return "SSL and TLS are the technology behind the padlock in your browser. They scramble data between a visitor and your site so others cannot read it. TLS is the newer, safer version. TLS 1.3 is the best, TLS 1.2 is acceptable, and 1.0 and 1.1 are outdated.";
-  }
-  if (has("score", "grade", "rating")) {
-    if (!scan) return "The score is a number out of 100 based on SecureSphere's own rules. It is not an industry standard. Scan a website and I can explain its score.";
-    const lost = fixes.length ? ` Points were lost for: ${fixes.map((f) => f.title).join("; ")}.` : " No problems were found.";
-    return `${scan.domain} scored ${scan.score} out of 100. This score comes from SecureSphere's own rules, not an industry standard.${lost}`;
-  }
-  if (has("certificate", "expire", "expiry", "issuer")) {
-    if (!scan) return "A certificate proves your site is who it says it is. It expires after a set time and must be renewed. Scan a site to see its details.";
-    const c = scan.certificate;
-    return `The certificate for ${scan.domain} was issued by ${c.issuer} and expires on ${c.expiry_date}, which is ${c.days_remaining} days from now. ${c.valid ? "It is valid." : "It is not valid."}`;
-  }
-  if (has("fix", "improve", "what should i do", "how do i", "solve")) {
-    if (!scan) return "Scan a website first, then ask me again and I will list what to fix.";
-    if (!fixes.length) return `Nothing needs fixing for ${scan.domain} in this scan.`;
-    return "Here is what to do, most serious first:\n" + fixes.map((f, i) => `${i + 1}. ${f.title}: ${f.fix}`).join("\n");
-  }
-  if (has("safe", "secure", "hack", "guarantee")) {
-    return "A good score means the settings we checked look good. It does not guarantee your site is safe, because SecureSphere only checks configuration. It does not test for hacking attacks.";
-  }
-  if (has("monitor", "alert", "notify")) {
-    return "Turn on \"Monitor this site\" on the results page. We rescan it regularly and send an alert when the certificate is close to expiry or the score drops. You can see them on the Alerts page.";
-  }
-  if (has("report", "download", "pdf")) {
-    return "After a scan, click \"Download report\" near the top of the results to save a PDF with the score, all checks, and the fixes.";
-  }
-  if (/^(hi|hello|hey)\b/.test(q)) return "Hello! Ask me about your score, your certificate, or how to fix a problem.";
-  return "I can explain your scan results, terms like TLS, HSTS and CSP, and how to fix problems. Try asking \"Explain my score\".";
-}
-
+// Without an AI key on the server (or when it is unreachable) the built-in answers in assistantRules.js
+// are used instead: free, offline, and based only on the real scan.
 // history: earlier turns as [{ role: "user" | "assistant", content }]. Returns { reply, ai }.
 export async function askAssistant(message, scan, history = []) {
   if (!USE_MOCK && getToken()) {
@@ -387,7 +346,7 @@ export async function askAssistant(message, scan, history = []) {
     }
   }
   await wait(500);
-  return { reply: mockReply(message, scan), ai: false };
+  return { reply: builtInReply(message, scan), ai: false };
 }
 
 // Accepts example.com, sub.example.com, example.com:8443. Rejects "hello", "http://", "123".

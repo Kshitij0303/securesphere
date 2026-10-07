@@ -27,7 +27,7 @@ from scanner.net import resolve_public
 from scanner.redirect import check_https_redirect
 from scanner.score import build_findings, calculate_score
 from scanner.tls_check import VERSIONS, check_tls_versions
-from scanner.variant import check_variant, other_name
+from scanner.variant import applies_to, check_variant, other_name
 
 __all__ = ["run_scan", "explain_findings", "STEPS"]
 
@@ -85,7 +85,10 @@ def run_scan(domain: str, port: int = 443, ip: str | None = None,
     header_job = _start("headers", progress, check_headers, domain, ip)
     redirect_job = _start("redirect", progress, check_https_redirect, domain, ip)
     dns_job = _start("dns", progress, check_dns, domain)
-    variant_job = _start("variant", progress, check_variant, domain)
+    # The www check only makes sense for a main domain; for others the step is reported done straight away.
+    variant_job = _start("variant", progress, check_variant, domain) if applies_to(domain) else None
+    if variant_job is None and progress:
+        progress("variant")
 
     cert = _wait(cert_job, deadline, None, required=True)  # raises if the site cannot be reached over HTTPS
     native_tls = _wait(tls_job, deadline, dict.fromkeys(VERSIONS))
@@ -94,7 +97,7 @@ def run_scan(domain: str, port: int = 443, ip: str | None = None,
     headers = _wait(header_job, deadline, {"headers": dict.fromkeys(HEADERS), "details": {}, "cookies": []})
     redirect = _wait(redirect_job, deadline, {"http_open": None, "redirects_to_https": None, "status": None, "location": None})
     dns = _wait(dns_job, deadline, {"caa": None, "dnssec": None, "hsts_preloaded": None})
-    variant = _wait(variant_job, deadline, {"host": other_name(domain), "exists": None})
+    variant = _wait(variant_job, deadline, {"host": other_name(domain), "exists": None}) if variant_job else None
     deep = _wait(deep_job, deadline, None)
 
     native = {"1.0": native_tls["tls1_0"], "1.1": native_tls["tls1_1"], "1.2": native_tls["tls1_2"], "1.3": native_tls["tls1_3"]}

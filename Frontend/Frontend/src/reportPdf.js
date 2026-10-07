@@ -68,6 +68,9 @@ export function downloadReport(data, grade) {
   row("X-Frame-Options", header(h.x_frame_options));
   row("X-Content-Type-Options", header(h.x_content_type_options));
   row("Referrer-Policy", header(h.referrer_policy));
+  if (data.header_details?.blocked_by) {
+    text(`The site's firewall (${data.header_details.blocked_by}) blocked the scanner, so headers and cookies could not be checked.`, { size: 9, color: [146, 64, 14] });
+  }
 
   const r = data.redirect;
   heading("HTTPS redirect and cookies");

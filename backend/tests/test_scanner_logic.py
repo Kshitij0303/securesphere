@@ -122,6 +122,8 @@ def test_header_parsing():
     assert _csp_weaknesses("script-src 'self' 'unsafe-inline'") == ["unsafe-inline"]
     assert _csp_weaknesses("script-src 'nonce-abc' 'unsafe-inline'") == []  # ignored by browsers with a nonce
     assert _csp_weaknesses("script-src 'unsafe-eval'") == ["unsafe-eval"]
+    assert _csp_weaknesses("script-src 'self'; style-src 'self' 'unsafe-inline'") == []  # styles only: not reported
+    assert _csp_weaknesses("default-src 'self' 'unsafe-inline'") == ["unsafe-inline"]   # default-src covers scripts
     assert _parse_cookie("sid=abc; Path=/; Secure; HttpOnly; SameSite=Lax") == \
         {"name": "sid", "secure": True, "httponly": True, "samesite": "Lax"}
     assert _parse_cookie("pref=1") == {"name": "pref", "secure": False, "httponly": False, "samesite": None}
@@ -162,3 +164,29 @@ def test_most_serious_finding_is_charged_first_within_a_category():
     calculate_score(findings)
     # Medium first (8), then the low ones in scan order until the limit of 10 is reached.
     assert [f["points_lost"] for f in findings] == [2, 8, 0]
+
+
+@pytest.mark.parametrize("host, expected", [
+    ("example.com", True), ("www.example.com", True), ("example.co.in", True), ("www.example.co.in", True),
+    ("api.github.com", False),                # a subdomain has no www twin people type
+    ("securesphere-psi.vercel.app", False),   # shared hosting: *.vercel.app can never cover www.<name>
+    ("www.securesphere-psi.vercel.app", False),
+    ("kshitij0303.github.io", False),
+])
+def test_www_check_only_for_main_domains(host, expected):
+    from scanner.variant import applies_to
+    assert applies_to(host) is expected
+
+
+def test_firewall_challenge_page_is_could_not_check_not_missing(monkeypatch):
+    """A bot-protection page has none of the site's headers; that must be "could not check", not "missing"."""
+    import email.message
+    import scanner.headers as h
+    challenge = email.message.Message()
+    challenge["X-Vercel-Mitigated"] = "challenge"
+    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (challenge, "https://x.vercel.app/"))
+    result = h.check_headers("x.vercel.app")
+    assert set(result["headers"].values()) == {None}
+    assert result["details"] == {"blocked_by": "Vercel bot protection"}
+    ids = findings_for(headers=result)
+    assert not any(i.startswith(("HSTS", "CSP", "X_", "REFERRER", "COOKIE")) for i in ids)

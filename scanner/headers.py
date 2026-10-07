@@ -37,7 +37,14 @@ def _parse_hsts(value: str) -> tuple[int | None, bool, bool]:
 
 
 def _csp_weaknesses(value: str) -> list[str]:
-    v = value.lower()
+    """Unsafe sources for SCRIPTS only. 'unsafe-inline' in style-src (common, needed by many chart
+    libraries) is a minor risk and is not reported. script-src falls back to default-src when absent."""
+    directives = {}
+    for part in value.lower().split(";"):
+        tokens = part.split()
+        if tokens:
+            directives.setdefault(tokens[0], tokens[1:])
+    v = " ".join(directives.get("script-src", directives.get("default-src", [])))
     found = []
     # Browsers ignore 'unsafe-inline' when a nonce, hash or 'strict-dynamic' is present (a common
     # backwards-compatibility pattern), so it is only a weakness without them.
@@ -95,11 +102,27 @@ def _fetch_home_page(host: str, ip: str | None):
     return headers, f"https://{current_host}{path}"
 
 
+def _blocked_by(found) -> str | None:
+    """Firewalls (bot protection) answer automated requests with a challenge page. Its headers are the
+    firewall's, not the website's, so reading them would wrongly report every header as missing."""
+    if (found.get("X-Vercel-Mitigated") or "").lower() == "challenge":
+        return "Vercel bot protection"
+    if (found.get("cf-mitigated") or "").lower() == "challenge":
+        return "Cloudflare bot protection"
+    if found.get("x-amzn-waf-action"):
+        return "AWS firewall"
+    return None
+
+
 def check_headers(host: str, ip: str | None = None) -> dict:
+    unknown = {key: None for key in HEADERS}
     try:
         found, final_url = _fetch_home_page(host, ip)
     except (OSError, http.client.HTTPException, ValueError):
-        return {"headers": {key: None for key in HEADERS}, "details": {}, "cookies": []}
+        return {"headers": unknown, "details": {}, "cookies": []}
+    blocker = _blocked_by(found)
+    if blocker:
+        return {"headers": unknown, "details": {"blocked_by": blocker}, "cookies": []}
 
     headers = {key: found.get(name) is not None for key, name in HEADERS.items()}
 

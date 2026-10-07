@@ -381,8 +381,9 @@ export async function askAssistant(message, scan, history = []) {
       });
       return { reply: res.reply, ai: true };
     } catch (e) {
-      // 503 = AI not set up on this server; no status = network problem. Other errors are real answers.
-      if (e.status && e.status !== 503) throw e;
+      // 503 = AI not set up, 502 = AI service unavailable (e.g. no API credit), no status = network problem:
+      // use the built-in answers. Other errors (e.g. 429 "too many questions") are shown to the user.
+      if (e.status && e.status !== 502 && e.status !== 503) throw e;
     }
   }
   await wait(500);

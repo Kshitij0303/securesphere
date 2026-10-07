@@ -21,10 +21,10 @@ def clean_domain(raw: str) -> str:
     return d
 
 
-def assert_public(domain: str) -> str:
+def assert_public(domain: str) -> list[str]:
     """Blocking call (DNS lookup). Rejects localhost, 10.x, 192.168.x, 172.16-31.x and similar.
 
-    Returns the checked IP address. The scanner connects to exactly this address, so a domain cannot
+    Returns the checked IP addresses. The scanner connects only to these addresses, so a domain cannot
     answer with a public IP here and a private one a moment later (DNS rebinding)."""
     try:
         infos = socket.getaddrinfo(domain, 443, proto=socket.IPPROTO_TCP)
@@ -34,8 +34,22 @@ def assert_public(domain: str) -> str:
     for address in addresses:
         if not ipaddress.ip_address(address).is_global:
             raise HTTPException(400, f"{domain} points to a private network, so it can't be scanned.")
-    ipv4 = [a for a in addresses if ipaddress.ip_address(a).version == 4]
-    return (ipv4 or addresses)[0]
+    # Every checked address, IPv4 first: the scanner tries them in turn and never uses an unchecked one.
+    return sorted(dict.fromkeys(addresses), key=lambda a: ipaddress.ip_address(a).version)
+
+
+def resolve_target(domain: str) -> tuple[str, list[str]]:
+    """(domain to scan, its checked IP addresses). Many sites only exist under www (incometax.gov.in has no address,
+    www.incometax.gov.in does), so a bare name that does not resolve falls back to its www name."""
+    try:
+        return domain, assert_public(domain)
+    except HTTPException as error:
+        if domain.startswith("www.") or "doesn't exist" not in str(error.detail):
+            raise
+        try:
+            return f"www.{domain}", assert_public(f"www.{domain}")
+        except HTTPException:
+            raise error  # report the name the user typed
 
 
 def email_domain_accepts_mail(email: str) -> bool:

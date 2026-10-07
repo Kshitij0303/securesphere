@@ -8,11 +8,10 @@ import http.client
 import ssl
 from urllib.parse import urlsplit
 
-from scanner.net import PinnedHTTPSConnection, resolve_public
+from scanner.net import PinnedHTTPSConnection, REQUEST_HEADERS, resolve_public_all
 
 TIMEOUT = 10
 MAX_REDIRECTS = 4
-USER_AGENT = "SecureSphere/1.0 (+security scan)"
 HSTS_MIN_MAX_AGE = 15768000  # 6 months, the usual recommendation
 
 HEADERS = {
@@ -83,7 +82,7 @@ def _fetch_home_page(host: str, ip: str | None):
     for _ in range(MAX_REDIRECTS + 1):
         conn = PinnedHTTPSConnection(current_host, current_ip, ctx, TIMEOUT)
         try:
-            conn.request("GET", path, headers={"User-Agent": USER_AGENT, "Accept": "text/html"})
+            conn.request("GET", path, headers=REQUEST_HEADERS)
             resp = conn.getresponse()
             headers, status = resp.headers, resp.status
         finally:
@@ -96,13 +95,16 @@ def _fetch_home_page(host: str, ip: str | None):
         if not _same_site(next_host, host):
             break  # never follow redirects to other sites
         if next_host != current_host:
-            current_ip = resolve_public(next_host)  # a new name gets its own safety check
+            current_ip = resolve_public_all(next_host)  # a new name gets its own safety check
         current_host = next_host
         path = (target.path or "/") + (f"?{target.query}" if target.query else "")
-    return headers, f"https://{current_host}{path}"
+    return headers, f"https://{current_host}{path}", status
 
 
-def _blocked_by(found) -> str | None:
+BLOCKED_CODES = (202, 401, 403, 429, 503)  # 202: Amazon-style "are you a robot" pages
+
+
+def _blocked_by(found, status: int) -> str | None:
     """Firewalls (bot protection) answer automated requests with a challenge page. Its headers are the
     firewall's, not the website's, so reading them would wrongly report every header as missing."""
     if (found.get("X-Vercel-Mitigated") or "").lower() == "challenge":
@@ -111,16 +113,18 @@ def _blocked_by(found) -> str | None:
         return "Cloudflare bot protection"
     if found.get("x-amzn-waf-action"):
         return "AWS firewall"
+    if status in BLOCKED_CODES:  # e.g. Akamai refuses non-browser visitors with a plain 403
+        return f"the site's firewall (HTTP {status})"
     return None
 
 
 def check_headers(host: str, ip: str | None = None) -> dict:
     unknown = {key: None for key in HEADERS}
     try:
-        found, final_url = _fetch_home_page(host, ip)
+        found, final_url, status = _fetch_home_page(host, ip)
     except (OSError, http.client.HTTPException, ValueError):
         return {"headers": unknown, "details": {}, "cookies": []}
-    blocker = _blocked_by(found)
+    blocker = _blocked_by(found, status)
     if blocker:
         return {"headers": unknown, "details": {"blocked_by": blocker}, "cookies": []}
 

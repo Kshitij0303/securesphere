@@ -9,7 +9,8 @@ and the hosting's wildcard certificate (*.vercel.app) can never cover it, which 
 If the other name does not exist in DNS there is nothing to check (and nothing to report)."""
 import ssl
 
-from scanner.net import connect, resolve_public
+from scanner.cert import diagnose_missing_issuer, failure_reason, fetch_chain, tls_context
+from scanner.net import connect, resolve_public_all
 from scanner.redirect import check_https_redirect
 
 TIMEOUT = 8
@@ -45,17 +46,22 @@ def applies_to(host: str) -> bool:
 def check_variant(host: str) -> dict:
     other = other_name(host)
     try:
-        ip = resolve_public(other)
+        ip = resolve_public_all(other)
     except ValueError:
         return {"host": other, "exists": False}
 
-    result = {"host": other, "exists": True, "https_ok": None, "cert_valid": None, "redirects_to_https": None}
+    result = {"host": other, "exists": True, "https_ok": None, "cert_valid": None, "chain_incomplete": False,
+              "redirects_to_https": None}
     try:
         with connect(other, 443, ip, TIMEOUT) as sock:
             with ssl.create_default_context().wrap_socket(sock, server_hostname=other):
                 result["https_ok"], result["cert_valid"] = True, True
-    except ssl.SSLCertVerificationError:
+    except ssl.SSLCertVerificationError as e:
         result["https_ok"], result["cert_valid"] = True, False
+        if failure_reason(e) == "untrusted_issuer":  # maybe only a missing intermediate, which Chrome fixes itself
+            leaf = fetch_chain(other, 443, tls_context(verify=False, legacy=False), ip)[0]
+            if diagnose_missing_issuer(other, 443, ip, leaf) == "chain_incomplete":
+                result["cert_valid"], result["chain_incomplete"] = True, True
     except OSError:
         result["https_ok"] = False  # HTTPS is not served on this name at all
 

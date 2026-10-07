@@ -59,7 +59,8 @@ def test_untested_values_never_create_findings():
 @pytest.mark.parametrize("changes, expected_id", [
     ({"cert": {"expired": True, "days_left": -3}}, "CERT_EXPIRED"),
     ({"cert": {"days_left": 5}}, "CERT_EXPIRES_VERY_SOON"),
-    ({"cert": {"days_left": 20}}, "CERT_EXPIRES_SOON"),
+    ({"cert": {"days_left": 10}}, "CERT_EXPIRES_SOON"),
+    ({"cert": {"error": "chain_incomplete"}}, "CERT_CHAIN_INCOMPLETE"),
     ({"cert": {"domain_match": False}}, "CERT_HOSTNAME_MISMATCH"),
     ({"cert": {"error": "self_signed"}}, "CERT_SELF_SIGNED"),
     ({"cert": {"error": "untrusted_root"}}, "CERT_UNTRUSTED"),
@@ -184,9 +185,61 @@ def test_firewall_challenge_page_is_could_not_check_not_missing(monkeypatch):
     import scanner.headers as h
     challenge = email.message.Message()
     challenge["X-Vercel-Mitigated"] = "challenge"
-    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (challenge, "https://x.vercel.app/"))
+    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (challenge, "https://x.vercel.app/", 403))
     result = h.check_headers("x.vercel.app")
     assert set(result["headers"].values()) == {None}
     assert result["details"] == {"blocked_by": "Vercel bot protection"}
     ids = findings_for(headers=result)
     assert not any(i.startswith(("HSTS", "CSP", "X_", "REFERRER", "COOKIE")) for i in ids)
+
+
+
+def test_auto_renewed_certificate_with_20_days_left_is_fine():
+    """Let's Encrypt and Google renew with about 30 days left; that is normal, not a warning."""
+    assert not any(i.startswith("CERT_") for i in findings_for(cert={"days_left": 20}))
+
+
+def test_incomplete_chain_is_not_reported_as_untrusted():
+    ids = findings_for(cert={"error": "chain_incomplete"})
+    assert "CERT_CHAIN_INCOMPLETE" in ids and "CERT_UNTRUSTED" not in ids
+
+
+def test_sha1_intermediate_is_named_in_the_finding():
+    findings = build_findings({**GOOD_CERT, "weak_signature": True, "weak_signature_in": ["intermediate certificate"]},
+                              GOOD_TLS, GOOD_CIPHERS, GOOD_HEADERS, GOOD_REDIRECT, NO_VULNS)
+    weak = [f for f in findings if f["id"] == "CERT_WEAK_SIGNATURE"]
+    assert weak and "intermediate certificate" in weak[0]["evidence"]
+
+
+def test_firewall_block_on_http_is_not_a_missing_redirect():
+    """Akamai answers non-browser visitors with 403 on http://; that says nothing about the redirect."""
+    ids = findings_for(redirect={"http_open": True, "redirects_to_https": None, "status": 403, "blocked": True})
+    assert "NO_HTTPS_REDIRECT" not in ids
+
+
+def test_plain_403_home_page_counts_as_blocked(monkeypatch):
+    import email.message
+    import scanner.headers as h
+    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (email.message.Message(), "https://x.example/", 403))
+    result = h.check_headers("x.example")
+    assert result["details"] == {"blocked_by": "the site's firewall (HTTP 403)"}
+    assert set(result["headers"].values()) == {None}
+
+
+
+def test_partial_result_cannot_get_an_a():
+    """rc4.badssl.com scored 97 (A) when TLS versions and ciphers could not be tested."""
+    score, grade, cap = calculate_score([], untested=["TLS versions"])
+    assert (score, grade) == (89, "B") and cap["finding"] is None
+    assert calculate_score([], untested=[]) == (100, "A", None)
+    low = [{"id": "CERT_EXPIRED", "severity": "critical", "evidence": "x"}]
+    assert calculate_score(low, untested=["DNS checks"])[0] == 59  # a lower cap still wins
+
+
+
+def test_amazon_style_202_bot_page_counts_as_blocked(monkeypatch):
+    """amazon.com answers automated visitors with "202 Accepted" and a robot-check page, not its home page."""
+    import email.message
+    import scanner.headers as h
+    monkeypatch.setattr(h, "_fetch_home_page", lambda host, ip: (email.message.Message(), "https://amazon.example/", 202))
+    assert h.check_headers("amazon.example")["details"] == {"blocked_by": "the site's firewall (HTTP 202)"}

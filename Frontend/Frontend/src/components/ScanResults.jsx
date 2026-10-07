@@ -139,6 +139,11 @@ export default function ScanResults({ data, compare = null }) {
             Grade {scoreGrade(data.score)}
           </p>
           <p className="text-slate-600">Scanned on {new Date(data.scanned_at).toLocaleString()}</p>
+          {data.requested_domain && (
+            <p className="text-sm text-slate-500">
+              {data.requested_domain} has no website of its own, so we scanned {data.domain} instead.
+            </p>
+          )}
           {data.cached && (
             <p className="text-sm text-slate-500">This site was scanned a few minutes ago, so that result was reused.</p>
           )}
@@ -173,6 +178,9 @@ export default function ScanResults({ data, compare = null }) {
           <Row label="Days remaining" ok={c.days_remaining > 30} value={c.days_remaining} />
           {c.key && <Row label="Key" ok={not(c.weak_key)} value={c.key} />}
           {c.signature && <Row label="Signature" ok={not(c.weak_signature)} value={c.signature} />}
+          {c.chain_complete != null && (
+            <Row label="Full chain sent" ok={c.chain_complete} value={c.chain_complete ? undefined : "Intermediate missing"} />
+          )}
           <p className="mt-2 text-sm text-slate-500">
             Issuer: {c.issuer} · Expires {c.expiry_date}
           </p>
@@ -266,7 +274,11 @@ export default function ScanResults({ data, compare = null }) {
             ) : (
               <>
                 <Row label="Serves HTTPS" ok={data.variant.https_ok} value={yesNoUnknown(data.variant.https_ok)} />
-                <Row label="Valid certificate" ok={data.variant.cert_valid} value={yesNoUnknown(data.variant.cert_valid)} />
+                <Row
+                  label="Valid certificate"
+                  ok={data.variant.chain_incomplete ? false : data.variant.cert_valid}
+                  value={data.variant.chain_incomplete ? "Yes, but chain incomplete" : yesNoUnknown(data.variant.cert_valid)}
+                />
                 <Row
                   label="HTTP → HTTPS redirect"
                   ok={data.variant.redirects_to_https ?? null}

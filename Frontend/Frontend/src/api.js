@@ -86,7 +86,14 @@ export function normalizeScan(raw) {
     scanned_at: raw.scanned_at,
     score: raw.score,
     // Set when a serious problem limited the score (e.g. expired certificate -> at most 59).
-    score_cap: cap ? { max_score: cap.max_score, reason: cap.reason, title: explanations[cap.finding]?.title || titleFromId(cap.finding) } : null,
+    score_cap: cap
+      ? {
+          max_score: cap.max_score,
+          reason: cap.reason,
+          // a cap from a finding is named by that finding; the "partial result" cap has only a reason
+          title: cap.finding ? explanations[cap.finding]?.title || titleFromId(cap.finding) : cap.reason,
+        }
+      : null,
     // null means "could not test/unknown" and must stay null (never shown as "not supported").
     certificate: {
       valid: Boolean(c.trusted) && !c.expired,
@@ -99,6 +106,8 @@ export function normalizeScan(raw) {
       weak_key: c.weak_key ?? null,
       signature: c.signature_hash ? c.signature_hash.toUpperCase() : null,
       weak_signature: c.weak_signature ?? null,
+      // false only when the server forgot its intermediate certificate (Chrome copes, Firefox and apps do not)
+      chain_complete: c.error === "chain_incomplete" ? false : c.chain_length ? true : null,
     },
     tls: {
       ssl_2: t.ssl2 ?? null, ssl_3: t.ssl3 ?? null,
@@ -121,6 +130,7 @@ export function normalizeScan(raw) {
     variant: raw.variant || null,
     cached: Boolean(raw.cached),
     untested: raw.untested || [], // checks that could not run: the score is then partial
+    requested_domain: raw.requested_domain || null, // set when the typed name had no website and www was scanned
     findings: (raw.findings || []).map((f) => {
       const e = explanations[f.id] || {};
       return {

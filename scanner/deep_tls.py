@@ -8,6 +8,8 @@ deep_scan() returns None if sslyze is not installed or the scan could not run; t
 to tls_check.py and ciphers.py."""
 import logging
 
+from cryptography.hazmat.primitives.serialization import Encoding
+
 log = logging.getLogger("securesphere.scanner")
 
 try:
@@ -33,10 +35,40 @@ def _is_weak(suite) -> bool:
     return suite.is_anonymous or suite.key_size < 128 or any(m in name for m in WEAK_MARKERS)
 
 
+def _first(ip):
+    """sslyze connects to one address: the first checked one."""
+    return ip if ip is None or isinstance(ip, str) else ip[0]
+
+
 def _attempt_result(attempt):
     if attempt is None or attempt.status != ScanCommandAttemptStatusEnum.COMPLETED:
         return None
     return attempt.result
+
+
+def fetch_certificate_chain(host: str, port: int = 443, ip: str | None = None) -> tuple[list[bytes], bool] | None:
+    """For servers whose ciphers this computer's OpenSSL no longer has (e.g. RC4 only): sslyze's own OpenSSL
+    fetches the chain. Returns (DER chain, trusted by a major trust store) or None."""
+    if Scanner is None:
+        return None
+    request = ServerScanRequest(
+        server_location=ServerNetworkLocation(hostname=host, port=port, ip_address=_first(ip)),
+        network_configuration=ServerNetworkConfiguration(tls_server_name_indication=host,
+                                                         network_timeout=5, network_max_retries=1),
+        scan_commands={ScanCommand.CERTIFICATE_INFO},
+    )
+    scanner = Scanner()
+    scanner.queue_scans([request])
+    result = next(iter(scanner.get_results()), None)
+    if result is None or result.scan_status != ServerScanStatusEnum.COMPLETED:
+        return None
+    info = _attempt_result(result.scan_result.certificate_info)
+    if not info or not info.certificate_deployments:
+        return None
+    deployment = info.certificate_deployments[0]
+    chain = [c.public_bytes(Encoding.DER) for c in deployment.received_certificate_chain]
+    trusted = any(p.was_validation_successful for p in deployment.path_validation_results)
+    return (chain, trusted) if chain else None
 
 
 def deep_scan(host: str, port: int = 443, ip: str | None = None) -> dict | None:
@@ -45,7 +77,7 @@ def deep_scan(host: str, port: int = 443, ip: str | None = None) -> dict | None:
     commands = {getattr(ScanCommand, cmd) for cmd, _ in VERSIONS.values()}
     commands |= {ScanCommand.HEARTBLEED, ScanCommand.OPENSSL_CCS_INJECTION, ScanCommand.ROBOT}
     request = ServerScanRequest(
-        server_location=ServerNetworkLocation(hostname=host, port=port, ip_address=ip),
+        server_location=ServerNetworkLocation(hostname=host, port=port, ip_address=_first(ip)),
         network_configuration=ServerNetworkConfiguration(tls_server_name_indication=host,
                                                          network_timeout=5, network_max_retries=1),
         scan_commands=commands,

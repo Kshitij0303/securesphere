@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from app.config import SCAN_CACHE_SECONDS, SCAN_TIMEOUT_SECONDS
 from app.database import db
 from app.scanner_adapter import explain_findings, run_scan
-from app.utils.validators import assert_public, clean_domain
+from app.utils.validators import clean_domain, resolve_target
 
 log = logging.getLogger("securesphere.scan")
 
@@ -60,7 +60,8 @@ async def perform_scan(user_id: str, raw_domain: str, source: str = "manual",
                 progress("cached")
             return doc
 
-    ip = await asyncio.to_thread(assert_public, domain)
+    requested = domain
+    domain, ip = await asyncio.to_thread(resolve_target, domain)  # may become www.<domain>
 
     # The scanner is blocking code, so it runs in a worker thread to keep the API responsive.
     # Its errors are wrapped in ScanFailed inside the thread: a socket timeout raises TimeoutError, the same
@@ -89,6 +90,7 @@ async def perform_scan(user_id: str, raw_domain: str, source: str = "manual",
         "domain": domain,
         "source": source,
         "scanned_at": datetime.now(timezone.utc),
+        "requested_domain": requested if requested != domain else None,  # e.g. typed without www
         **result,
         "explanations": explanations,
     }

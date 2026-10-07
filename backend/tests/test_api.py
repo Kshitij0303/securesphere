@@ -340,3 +340,30 @@ async def test_unconfirmed_accounts_expire_automatically():
     expiry = info["unverified_expiry"]
     assert expiry["expireAfterSeconds"] == 3 * 86400
     assert expiry["partialFilterExpression"] == {"email_verified": False}  # confirmed accounts are never deleted
+
+
+
+async def test_bare_domain_without_address_scans_www(client, monkeypatch):
+    """incometax.gov.in has no address but www.incometax.gov.in does: scan www and say so."""
+    from fastapi import HTTPException
+
+    def dns(domain):
+        if domain == "noapex.example":
+            raise HTTPException(400, f"{domain} doesn't exist. Check the spelling and try again.")
+        return "93.184.216.34"
+    monkeypatch.setattr("app.utils.validators.assert_public", dns)
+    headers = await signup(client)
+    job = await run_job(client, headers, "noapex.example")
+    assert job["status"] == "done"
+    assert job["scan"]["domain"] == "www.noapex.example" and job["scan"]["requested_domain"] == "noapex.example"
+
+
+async def test_unknown_domain_still_reports_the_typed_name(client, monkeypatch):
+    from fastapi import HTTPException
+
+    def dns(domain):
+        raise HTTPException(400, f"{domain} doesn't exist. Check the spelling and try again.")
+    monkeypatch.setattr("app.utils.validators.assert_public", dns)
+    headers = await signup(client)
+    job = await run_job(client, headers, "typo.example")
+    assert job["status"] == "error" and job["error"].startswith("typo.example doesn't exist")

@@ -1,0 +1,40 @@
+domain,category,expected,before,after,scanned_as,checks_that_could_not_run,what_changed
+expired.badssl.com,badssl-test,expired certificate,19 F,19 F,,Full cipher and vulnerability tests,
+wrong.host.badssl.com,badssl-test,certificate hostname mismatch,19 F,19 F,,Full cipher and vulnerability tests,
+self-signed.badssl.com,badssl-test,self-signed certificate,19 F,19 F,,Full cipher and vulnerability tests,
+untrusted-root.badssl.com,badssl-test,untrusted certificate chain,19 F,19 F,,Full cipher and vulnerability tests,
+tls-v1-0.badssl.com:1010,badssl-test,TLS 1.0 enabled,error (SSLError),49 F,,Full cipher and vulnerability tests,Was a crash; legacy TLS fallback now scans it (TLS 1.0 only = no modern TLS)
+rc4.badssl.com,badssl-test,weak RC4 cipher,error (SSLError),89 B,,TLS versions; Security headers and cookies; Full cipher and vulnerability tests,Was a crash; certificate now fetched via sslyze. Partial result (badssl too slow for full cipher test)
+http.badssl.com,badssl-test,no HTTPS,37 F,37 F,,Full cipher and vulnerability tests,
+sha1-intermediate.badssl.com,badssl-test,SHA-1 intermediate certificate,9 F,9 F,,Full cipher and vulnerability tests,SHA-1 intermediate certificate now detected (also expired)
+google.com,well-run,high score,31 F,31 F,,,
+microsoft.com,well-run,high score,77 C,82 B,,,Standard bot User-Agent: real headers now read instead of a block page
+apple.com,well-run,high score,87 B,87 B,,,
+amazon.com,well-run,high score,57 F,31 F,,,"Bot-check pages (HTTP 202) now count as blocked, not as missing headers"
+icicibank.com,well-run,high score,77 C,77 C,,,
+hdfcbank.com,well-run,high score,74 C,74 C,,,
+sbi.co.in,well-run,high score,78 C,78 C,,,
+npci.org.in,well-run,high score,62 D,91 A,,,False 'no HTTPS redirect' was a firewall 403; real headers now read
+india.gov.in,indian-gov-edu,unknown,61 D,89 B,,Security headers and cookies (blocked by the site's firewall (HTTP 403)),Akamai blocks automated visitors: headers honestly marked 'could not check'
+nic.gov.in,indian-gov-edu,unknown,66 D,89 B,,Security headers and cookies (blocked by the site's firewall (HTTP 403)),Akamai blocks automated visitors: headers honestly marked 'could not check'
+mygov.in,indian-gov-edu,unknown,100 A,89 B,,Security headers and cookies; Full cipher and vulnerability tests,Partial result now capped at B (was 100 A with checks missing)
+uidai.gov.in,indian-gov-edu,unknown,75 C,87 B,,,False 'www certificate invalid' fixed (incomplete chain / AIA .p7c download)
+incometax.gov.in,indian-gov-edu,unknown,error (ValueError),86 B,www.incometax.gov.in,,"Was an error; bare name has no website, www is scanned automatically"
+iitb.ac.in,indian-gov-edu,unknown,77 C,86 B,,,
+iitm.ac.in,indian-gov-edu,unknown,error (ValueError),84 B,www.iitm.ac.in,,"Was an error; bare name has no website, www is scanned automatically"
+iisc.ac.in,indian-gov-edu,unknown,84 B,84 B,,,
+flipkart.com,indian-popular,unknown,70 C,70 C,,,
+irctc.co.in,indian-popular,unknown,66 D,73 C,,,Standard bot User-Agent: real headers read instead of a block page
+makemytrip.com,indian-popular,unknown,63 D,89 B,,Security headers and cookies,"'Expires soon' false alarm removed (auto-renewed certificate, threshold now 14 days)"
+timesofindia.indiatimes.com,indian-popular,unknown,73 C,88 B,,,Standard bot User-Agent: real headers read instead of a 403 block page
+airtel.in,indian-popular,unknown,37 F,58 F,,,
+vercel.com,hosting-platform,unknown,94 A,89 B,,Security headers and cookies (blocked by Vercel bot protection),Vercel bot protection detected; partial result capped at B
+netlify.com,hosting-platform,unknown,82 B,82 B,,,
+pages.github.com,hosting-platform,unknown,69 D,77 C,,,'Expires soon' false alarm removed (threshold now 14 days)
+cloudflare.com,hosting-platform,unknown,62 D,62 D,,,
+nextjs.org,hosting-platform,unknown,72 C,72 C,,,
+neverssl.com,likely-weak,no HTTPS,89 B,62 D,,Full cipher and vulnerability tests,"IPv4 address down: scanner now tries every address (IPv6), so the missing redirect is found"
+httpforever.com,likely-weak,no HTTPS,error (SSLError),error (SSLError),,,"Correct: HTTPS handshake refused, reported as 'secure version is broken'"
+info.cern.ch,likely-weak,no HTTPS,62 D,62 D,,,
+old.iitbhu.ac.in,likely-weak,unknown,62 D,62 D,,Full cipher and vulnerability tests,
+old.in,likely-weak,unknown,error (TimeoutError),error (TimeoutError),,,"Correct: no HTTPS answer, reported as 'no secure version'"

@@ -6,11 +6,13 @@ other hosts, and every new name gets its own public-address check, so this canno
 import http.client
 from urllib.parse import urlsplit
 
-from scanner.net import PinnedHTTPConnection, resolve_public
+from scanner.net import PinnedHTTPConnection, REQUEST_HEADERS, resolve_public_all
 
 TIMEOUT = 8
 MAX_HOPS = 3
 REDIRECT_CODES = (301, 302, 303, 307, 308)
+# Firewalls (Akamai, Cloudflare, ...) answer automated requests like these; it says nothing about the redirect.
+BLOCKED_CODES = (202, 401, 403, 429, 503)  # 202: Amazon-style "are you a robot" pages
 
 
 def _same_site(a: str, b: str) -> bool:
@@ -24,7 +26,7 @@ def check_https_redirect(host: str, ip: str | None = None) -> dict:
     for _ in range(MAX_HOPS):
         conn = PinnedHTTPConnection(current, current_ip, TIMEOUT)
         try:
-            conn.request("GET", path, headers={"User-Agent": "SecureSphere/1.0 (+security scan)"})
+            conn.request("GET", path, headers=REQUEST_HEADERS)
             resp = conn.getresponse()
             status, location = resp.status, resp.getheader("Location") or ""
         except (OSError, http.client.HTTPException):
@@ -34,6 +36,8 @@ def check_https_redirect(host: str, ip: str | None = None) -> dict:
         finally:
             conn.close()
 
+        if first_status is None and status in BLOCKED_CODES and not location:
+            return {"http_open": True, "redirects_to_https": None, "status": status, "location": None, "blocked": True}
         first_status = first_status or status
         if status not in REDIRECT_CODES:
             break
@@ -47,7 +51,7 @@ def check_https_redirect(host: str, ip: str | None = None) -> dict:
             break
         if next_host != current:
             try:
-                current_ip = resolve_public(next_host)
+                current_ip = resolve_public_all(next_host)
             except ValueError:
                 break
         current, path = next_host, (target.path or "/") + (f"?{target.query}" if target.query else "")

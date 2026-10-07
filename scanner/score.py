@@ -58,7 +58,8 @@ def build_findings(cert: dict, tls: dict, ciphers: dict, headers: dict, redirect
         add("CERT_EXPIRED", "critical", f"Certificate expired on {cert['expires_at']}")
     elif days is not None and days <= 7:
         add("CERT_EXPIRES_VERY_SOON", "high", f"Certificate expires in {days} days ({cert['expires_at']})")
-    elif days is not None and days <= 30:
+    elif days is not None and days <= 14:
+        # Not 30: auto-renewed certificates (Let's Encrypt, Google, ...) are normally renewed with ~30 days left.
         add("CERT_EXPIRES_SOON", "medium", f"Certificate expires in {days} days ({cert['expires_at']})")
     if cert.get("domain_match") is False:
         names = ", ".join(cert.get("names", [])[:5]) or "other names"
@@ -67,10 +68,13 @@ def build_findings(cert: dict, tls: dict, ciphers: dict, headers: dict, redirect
         add("CERT_SELF_SIGNED", "critical", "The certificate is self-signed")
     elif err in ("untrusted_root", "untrusted_issuer", "untrusted"):
         add("CERT_UNTRUSTED", "critical", f"Browsers do not trust the certificate issuer ({cert.get('issuer')})")
+    elif err == "chain_incomplete":
+        add("CERT_CHAIN_INCOMPLETE", "medium", "The server does not send its intermediate certificate")
     if cert.get("weak_key"):
         add("CERT_WEAK_KEY", "high", f"Certificate key is only {cert['key_size']}-bit {cert['key_type']}")
     if cert.get("weak_signature"):
-        add("CERT_WEAK_SIGNATURE", "high", f"Certificate is signed with {cert['signature_hash'].upper()}")
+        where = " and ".join(cert.get("weak_signature_in") or ["certificate"])
+        add("CERT_WEAK_SIGNATURE", "high", f"The {where} is signed with SHA-1 or MD5")
 
     # Protocol versions
     if tls.get("ssl2") is True:
@@ -148,13 +152,18 @@ def build_findings(cert: dict, tls: dict, ciphers: dict, headers: dict, redirect
             add("VARIANT_NO_HTTPS", "medium", f"{other} exists but does not serve HTTPS")
         elif variant.get("cert_valid") is False:
             add("VARIANT_CERT_INVALID", "high", f"{other} has a certificate that browsers reject")
+        elif variant.get("chain_incomplete"):
+            add("VARIANT_CERT_CHAIN_INCOMPLETE", "low", f"{other} does not send its intermediate certificate")
         if variant.get("redirects_to_https") is False:
             add("VARIANT_NO_HTTPS_REDIRECT", "medium", f"http://{other} does not redirect to https://")
 
     return findings
 
 
-def calculate_score(findings: list[dict]) -> tuple[int, str, dict | None]:
+PARTIAL_RESULT_MAX = 89  # an A needs every check to have run
+
+
+def calculate_score(findings: list[dict], untested: list[str] | None = None) -> tuple[int, str, dict | None]:
     """Returns (score, grade, cap). cap explains when a serious finding limited the score.
 
     Most serious findings are charged first; once a category reaches its limit, further findings in it
@@ -175,6 +184,11 @@ def calculate_score(findings: list[dict]) -> tuple[int, str, dict | None]:
         if score > limit:
             score = limit
             cap = {"max_score": limit, "finding": finding["id"], "reason": finding["evidence"]}
+    # A site we could not fully check must not look perfect: the missing checks might have found problems.
+    if untested and score > PARTIAL_RESULT_MAX:
+        score = PARTIAL_RESULT_MAX
+        cap = {"max_score": PARTIAL_RESULT_MAX, "finding": None,
+               "reason": "Some checks could not run, and an A needs a complete scan"}
 
     grade = "A" if score >= 90 else "B" if score >= 80 else "C" if score >= 70 else "D" if score >= 60 else "F"
     return score, grade, cap

@@ -65,3 +65,16 @@ def test_well_configured_site_scores_well():
     assert result["tls"]["1.0"] is False and result["tls"]["1.3"] is True
     assert result["redirect"]["redirects_to_https"] is True
     assert result["score"] >= 90
+
+
+
+def test_tls_1_0_only_server_can_be_scanned():
+    """Found by the dataset run: servers that speak only TLS 1.0 used to crash the scan."""
+    result = run_scan("tls-v1-0.badssl.com", port=1010)
+    assert result["certificate"]["legacy_only"] is True
+    assert result["tls"]["1.0"] is True
+
+
+def test_sha1_intermediate_is_detected():
+    """Found by the dataset run: SHA-1 in an intermediate certificate was missed."""
+    assert "intermediate certificate" in check_certificate("sha1-intermediate.badssl.com")["weak_signature_in"]

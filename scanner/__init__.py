@@ -23,7 +23,7 @@ from scanner.deep_tls import deep_scan
 from scanner.dns_checks import check_dns
 from scanner.explain import explain_findings
 from scanner.headers import HEADERS, check_headers
-from scanner.net import resolve_public
+from scanner.net import resolve_public_all
 from scanner.redirect import check_https_redirect
 from scanner.score import build_findings, calculate_score
 from scanner.tls_check import VERSIONS, check_tls_versions
@@ -74,9 +74,9 @@ def _wait(job, deadline: float, default, required: bool = False):
     return default if box.get("value") is None else box["value"]
 
 
-def run_scan(domain: str, port: int = 443, ip: str | None = None,
+def run_scan(domain: str, port: int = 443, ip: str | list[str] | None = None,
              progress: Callable[[str], None] | None = None) -> dict:
-    ip = ip or resolve_public(domain)  # raises ValueError for private/internal addresses
+    ip = ip or resolve_public_all(domain)  # raises ValueError for private/internal addresses
     deadline = time.monotonic() + SCAN_BUDGET
     cert_job = _start("certificate", progress, check_certificate, domain, port, ip)
     deep_job = _start("deep", progress, deep_scan, domain, port, ip)
@@ -101,6 +101,10 @@ def run_scan(domain: str, port: int = 443, ip: str | None = None,
     deep = _wait(deep_job, deadline, None)
 
     native = {"1.0": native_tls["tls1_0"], "1.1": native_tls["tls1_1"], "1.2": native_tls["tls1_2"], "1.3": native_tls["tls1_3"]}
+    if cert.get("fetched_with") == "sslyze":
+        # This computer's OpenSSL could not talk to the server at all (e.g. RC4 only), so its "refused"
+        # answers mean nothing: only sslyze's results count.
+        native = {k: (None if v is False else v) for k, v in native.items()}
     if deep:
         # sslyze is more complete; the built-in check fills any version sslyze could not test.
         tls = {k: (deep["versions"].get(k) if deep["versions"].get(k) is not None else native.get(k))
@@ -121,13 +125,15 @@ def run_scan(domain: str, port: int = 443, ip: str | None = None,
         untested.append(f"Security headers and cookies (blocked by {blocked})" if blocked else "Security headers and cookies")
     if redirect.get("http_open") is None:
         untested.append("HTTP to HTTPS redirect")
+    elif redirect.get("blocked"):
+        untested.append(f"HTTP to HTTPS redirect (blocked by the site's firewall, HTTP {redirect['status']})")
     if not deep:
         untested.append("Full cipher and vulnerability tests")
     if all(v is None for v in dns.values()):
         untested.append("DNS checks")
 
     findings = build_findings(cert, tls, ciphers, headers, redirect, vulns, dns, variant)
-    score, grade, cap = calculate_score(findings)
+    score, grade, cap = calculate_score(findings, untested)
     return {
         "certificate": cert,
         "tls": tls,  # True / False / None (could not test)

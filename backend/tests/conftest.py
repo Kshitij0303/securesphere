@@ -38,8 +38,7 @@ async def clean_db():
 @pytest.fixture(autouse=True)
 def no_real_dns(monkeypatch):
     """Domain checks would do real DNS lookups; pretend every test domain is a public site."""
-    monkeypatch.setattr("app.services.scan_service.assert_public", lambda domain: PUBLIC_IP)
-    monkeypatch.setattr("app.routers.monitor.assert_public", lambda domain: PUBLIC_IP)
+    monkeypatch.setattr("app.utils.validators.assert_public", lambda domain: PUBLIC_IP)
     # Sign-up checks the email domain's mail server in DNS; tests pretend every domain can receive mail.
     monkeypatch.setattr("app.routers.auth.email_domain_accepts_mail", lambda email: True)
 

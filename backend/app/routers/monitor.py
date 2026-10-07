@@ -11,7 +11,7 @@ from app.database import db, serialize
 from app.models import MonitorIn
 from app.scheduler import rescan_one
 from app.security import current_user, verified_user
-from app.utils.validators import assert_public, clean_domain
+from app.utils.validators import clean_domain, resolve_target
 
 log = logging.getLogger("securesphere.monitor")
 router = APIRouter(prefix="/monitor", tags=["monitoring"])
@@ -26,8 +26,7 @@ async def _first_scan(mon: dict) -> None:
 
 @router.post("", status_code=201)
 async def add_monitor(body: MonitorIn, background: BackgroundTasks, user: dict = Depends(verified_user)):
-    domain = clean_domain(body.domain)
-    await asyncio.to_thread(assert_public, domain)
+    domain, _ip = await asyncio.to_thread(resolve_target, clean_domain(body.domain))
     try:
         res = await db.monitors.insert_one({
             "user_id": str(user["_id"]), "domain": domain, "active": True,

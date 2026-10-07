@@ -17,11 +17,11 @@ EXPLANATIONS = {
         "fix": "Renew the certificate today and check that automatic renewal is working.",
     },
     "CERT_EXPIRES_SOON": {
-        "title": "Certificate expires within 30 days",
-        "problem": "The certificate will expire in less than a month.",
+        "title": "Certificate expires within 14 days",
+        "problem": "The certificate will expire in less than two weeks.",
         "why_it_matters": "Forgotten renewals are one of the most common causes of HTTPS outages.",
         "impact": "If it is not renewed in time, browsers will block the site.",
-        "fix": "Plan the renewal now, or turn on automatic renewal with your certificate provider.",
+        "fix": "Renew it now. Automatic renewal normally happens with about 30 days left, so check that it is working.",
     },
     "CERT_HOSTNAME_MISMATCH": {
         "title": "Certificate is for a different domain",
@@ -225,6 +225,20 @@ EXPLANATIONS = {
         "why_it_matters": "Without CAA, any of the hundreds of trusted authorities could be tricked into issuing a certificate for your domain.",
         "impact": "Small on its own, but CAA is a cheap extra layer against fake certificates.",
         "fix": "Add a CAA DNS record for your certificate provider, e.g. example.com. CAA 0 issue \"letsencrypt.org\".",
+    },
+    "CERT_CHAIN_INCOMPLETE": {
+        "title": "Certificate chain is incomplete",
+        "problem": "The server sends its own certificate but not the intermediate certificate that links it to a trusted authority.",
+        "why_it_matters": "Chrome, Edge and Safari download the missing piece themselves, but Firefox, mobile apps, command-line tools and older devices do not.",
+        "impact": "Some visitors and apps get a security error even though the certificate itself is fine.",
+        "fix": "Install the full chain on the server: your certificate followed by the intermediate certificate(s) from your certificate provider (often a file named fullchain.pem).",
+    },
+    "VARIANT_CERT_CHAIN_INCOMPLETE": {
+        "title": "The other address has an incomplete certificate chain",
+        "problem": "The www (or non-www) address does not send its intermediate certificate.",
+        "why_it_matters": "Chrome fixes this by itself, but Firefox, apps and older devices show an error for that address.",
+        "impact": "Some visitors who type that version of the address see a security warning.",
+        "fix": "Install the full chain (fullchain.pem) for that address too.",
     },
     "VARIANT_NO_HTTPS": {
         "title": "The other address does not use HTTPS",

@@ -10,6 +10,8 @@ import urllib.request
 import dns.exception
 import dns.resolver
 
+from scanner.net import USER_AGENT
+
 TIMEOUT = 4
 PRELOAD_API = "https://hstspreload.org/api/v2/status?domain="
 
@@ -60,7 +62,7 @@ def check_hsts_preload(host: str) -> bool | None:
     """Asks the official preload list (hstspreload.org). A parent domain counts if it covers subdomains."""
     try:
         for name in _candidates(host):
-            req = urllib.request.Request(PRELOAD_API + name, headers={"User-Agent": "SecureSphere/1.0"})
+            req = urllib.request.Request(PRELOAD_API + name, headers={"User-Agent": USER_AGENT})
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 status = json.load(resp)
             if status.get("status") == "preloaded" and (name == host or status.get("include_subdomains")):

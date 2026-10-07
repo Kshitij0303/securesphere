@@ -142,7 +142,7 @@ export default function App() {
           <Route path="*" element={<p className="text-slate-600">Page not found.</p>} />
         </Routes>
       </main>
-      <Assistant />
+      {loggedIn && <Assistant />}
     </div>
   );
 }

@@ -37,6 +37,9 @@ export default function ScanPage() {
       <p className="mt-2 max-w-xl text-slate-600">
         Enter a domain to see its certificate, TLS versions, ciphers, security headers and more.
       </p>
+      <p className="mt-1 max-w-xl text-sm text-slate-500">
+        Only scan websites you own or have permission to test.
+      </p>
       <DomainForm
         buttonText="Scan website"
         loadingText="Scanning…"

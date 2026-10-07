@@ -34,6 +34,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 RESET_TOKEN_MINUTES = int(os.getenv("RESET_TOKEN_MINUTES", "30"))
 MAX_RESET_REQUESTS_PER_HOUR = int(os.getenv("MAX_RESET_REQUESTS_PER_HOUR", "3"))
 VERIFY_TOKEN_HOURS = int(os.getenv("VERIFY_TOKEN_HOURS", "24"))
+UNVERIFIED_ACCOUNT_DAYS = int(os.getenv("UNVERIFIED_ACCOUNT_DAYS", "3"))  # then deleted automatically
 
 # AI assistant (Claude). Without ANTHROPIC_API_KEY the frontend uses its simple built-in answers.
 ASSISTANT_MODEL = os.getenv("ASSISTANT_MODEL", "claude-opus-5-5")

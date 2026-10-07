@@ -1,4 +1,5 @@
 """Module 9: Sign-up, login (with brute-force protection) and email verification."""
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from bson import ObjectId
@@ -11,12 +12,16 @@ from app.models import LoginIn, SignupIn, TokenOut, VerifyEmailIn
 from app.security import create_token, hash_password, verify_password
 from app.services.tokens import hash_token
 from app.services.verification import send_verification
+from app.utils.validators import email_domain_accepts_mail
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/signup", response_model=TokenOut, status_code=201)
 async def signup(body: SignupIn, background: BackgroundTasks):
+    if not await asyncio.to_thread(email_domain_accepts_mail, body.email):
+        domain = body.email.rsplit("@", 1)[-1]
+        raise HTTPException(400, f"We can't send email to {domain}. Please check your email address.")
     user = {
         "name": body.name.strip(),
         "email": body.email.lower(),

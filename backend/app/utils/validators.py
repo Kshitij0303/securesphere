@@ -3,6 +3,9 @@ import ipaddress
 import re
 import socket
 
+import dns.exception
+import dns.resolver
+
 from fastapi import HTTPException
 
 HOST_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
@@ -33,3 +36,27 @@ def assert_public(domain: str) -> str:
             raise HTTPException(400, f"{domain} points to a private network, so it can't be scanned.")
     ipv4 = [a for a in addresses if ipaddress.ip_address(a).version == 4]
     return (ipv4 or addresses)[0]
+
+
+def email_domain_accepts_mail(email: str) -> bool:
+    """Blocking call (DNS). False only when DNS clearly says the address's domain cannot receive email:
+    it does not exist, has a "null MX" (RFC 7505: accepts no mail), or has neither MX nor address records.
+    A DNS problem on our side returns True, so a real person is never turned away by a timeout."""
+    domain = email.rsplit("@", 1)[-1].strip().lower()
+    resolver = dns.resolver.Resolver()
+    resolver.lifetime = 4
+    try:
+        hosts = [str(r.exchange).rstrip(".") for r in resolver.resolve(domain, "MX")]
+        return any(hosts)  # a null MX is the single host "." -> ""
+    except dns.resolver.NXDOMAIN:
+        return False
+    except dns.resolver.NoAnswer:
+        try:  # no MX: mail is delivered to the domain's own address, if it has one
+            resolver.resolve(domain, "A")
+            return True
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+            return False
+        except dns.exception.DNSException:
+            return True
+    except dns.exception.DNSException:
+        return True

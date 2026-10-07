@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.config import ASSISTANT_MODEL, MAX_ASSISTANT_MESSAGES_PER_HOUR
 from app.database import db
 from app.models import AssistantIn
-from app.security import current_user
+from app.security import current_user, verified_user
 
 log = logging.getLogger("securesphere.assistant")
 router = APIRouter(prefix="/assistant", tags=["assistant"])
@@ -62,7 +62,7 @@ async def _scan_context(scan_id: str | None, user_id: str) -> str:
 
 
 @router.post("")
-async def ask(body: AssistantIn, user: dict = Depends(current_user)):
+async def ask(body: AssistantIn, user: dict = Depends(verified_user)):
     if not _configured():
         raise HTTPException(503, "The AI assistant is not set up on this server.")
     uid = str(user["_id"])

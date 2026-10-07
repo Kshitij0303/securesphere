@@ -45,3 +45,12 @@ async def current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)) ->
     if changed and data.get("iat", 0) < int(changed.timestamp()):
         raise HTTPException(401, "Your password was changed. Please log in again.")
     return user
+
+
+async def verified_user(user: dict = Depends(current_user)) -> dict:
+    """Dependency for actions that need a confirmed email (scanning, monitoring, the assistant).
+    Anyone can type any address at sign-up; only clicking the emailed link proves it is theirs."""
+    if not user.get("email_verified"):
+        raise HTTPException(403, "Please confirm your email address first. Check your inbox for our link, "
+                                 "or send a new one from the banner at the top of the page.")
+    return user

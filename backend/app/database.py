@@ -1,7 +1,7 @@
 """Module 2: Database connection (MongoDB via Motor) and indexes."""
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.config import DB_NAME, MONGO_URL
+from app.config import DB_NAME, MONGO_URL, UNVERIFIED_ACCOUNT_DAYS
 
 client = AsyncIOMotorClient(MONGO_URL, tz_aware=True)
 db = client[DB_NAME]
@@ -9,6 +9,11 @@ db = client[DB_NAME]
 
 async def create_indexes() -> None:
     await db.users.create_index("email", unique=True)
+    # Accounts whose email was never confirmed are deleted by MongoDB after a few days (fake sign-ups clean
+    # themselves up). The filter matches only email_verified == false, so confirmed accounts are never touched.
+    await db.users.create_index("created_at", name="unverified_expiry",
+                                expireAfterSeconds=UNVERIFIED_ACCOUNT_DAYS * 86400,
+                                partialFilterExpression={"email_verified": False})
     await db.scans.create_index([("user_id", 1), ("domain", 1), ("scanned_at", -1)])
     await db.monitors.create_index([("user_id", 1), ("domain", 1)], unique=True)
     await db.alerts.create_index([("user_id", 1), ("created_at", -1)])

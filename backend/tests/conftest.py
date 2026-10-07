@@ -40,6 +40,8 @@ def no_real_dns(monkeypatch):
     """Domain checks would do real DNS lookups; pretend every test domain is a public site."""
     monkeypatch.setattr("app.services.scan_service.assert_public", lambda domain: PUBLIC_IP)
     monkeypatch.setattr("app.routers.monitor.assert_public", lambda domain: PUBLIC_IP)
+    # Sign-up checks the email domain's mail server in DNS; tests pretend every domain can receive mail.
+    monkeypatch.setattr("app.routers.auth.email_domain_accepts_mail", lambda email: True)
 
 
 @pytest.fixture
@@ -48,8 +50,11 @@ async def client():
         yield c
 
 
-async def signup(client, email="user@example.com", password="password123", name="Test User") -> dict:
-    """Creates an account and returns auth headers for it."""
+async def signup(client, email="user@example.com", password="password123", name="Test User", verified=True) -> dict:
+    """Creates an account and returns auth headers for it. By default the email is marked confirmed,
+    as if the user clicked the link, because scanning and monitoring need a confirmed email."""
     res = await client.post("/auth/signup", json={"name": name, "email": email, "password": password})
     assert res.status_code == 201, res.text
+    if verified:
+        await database.db.users.update_one({"email": email.lower()}, {"$set": {"email_verified": True}})
     return {"Authorization": f"Bearer {res.json()['access_token']}"}

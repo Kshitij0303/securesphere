@@ -110,7 +110,7 @@ async def test_reset_password_flow(client, monkeypatch):
 
 async def test_email_verification_flow(client, monkeypatch):
     use_known_token(monkeypatch, "app.services.verification")
-    headers = await signup(client)
+    headers = await signup(client, verified=False)
     assert (await client.get("/users/me", headers=headers)).json()["email_verified"] is False
     assert (await client.post("/auth/verify-email", json={"token": KNOWN_TOKEN})).status_code == 200
     assert (await client.get("/users/me", headers=headers)).json()["email_verified"] is True
@@ -118,7 +118,7 @@ async def test_email_verification_flow(client, monkeypatch):
 
 
 async def test_resend_verification_is_limited(client):
-    headers = await signup(client)  # sign-up already sent one
+    headers = await signup(client, verified=False)  # sign-up already sent one
     for _ in range(2):
         assert (await client.post("/users/me/resend-verification", headers=headers)).status_code == 200
     assert (await client.post("/users/me/resend-verification", headers=headers)).status_code == 429
@@ -314,3 +314,29 @@ async def test_really_slow_scan_says_it_took_too_long(client, monkeypatch):
     headers = await signup(client)
     job = await run_job(client, headers, "slow.example")
     assert job["status"] == "error" and "took too long" in job["error"]
+
+
+
+async def test_unconfirmed_accounts_cannot_scan_monitor_or_ask(client):
+    headers = await signup(client, verified=False)
+    for method, path, body in [("post", "/scan/jobs", {"domain": "example.com"}), ("post", "/scan", {"domain": "example.com"}),
+                               ("post", "/monitor", {"domain": "example.com"}), ("post", "/assistant", {"message": "hi"})]:
+        res = await getattr(client, method)(path, headers=headers, json=body)
+        assert res.status_code == 403 and "confirm your email" in res.json()["detail"], path
+    # ...but they can still log in, see their profile and ask for a new link.
+    assert (await client.get("/users/me", headers=headers)).status_code == 200
+    assert (await client.post("/users/me/resend-verification", headers=headers)).status_code == 200
+
+
+async def test_signup_rejects_domains_that_cannot_receive_mail(client, monkeypatch):
+    monkeypatch.setattr("app.routers.auth.email_domain_accepts_mail", lambda email: False)
+    res = await client.post("/auth/signup", json={"name": "A", "email": "abc@nomail.example", "password": "password123"})
+    assert res.status_code == 400 and "can't send email to nomail.example" in res.json()["detail"]
+    assert await db.users.count_documents({}) == 0
+
+
+async def test_unconfirmed_accounts_expire_automatically():
+    info = await db.users.index_information()
+    expiry = info["unverified_expiry"]
+    assert expiry["expireAfterSeconds"] == 3 * 86400
+    assert expiry["partialFilterExpression"] == {"email_verified": False}  # confirmed accounts are never deleted

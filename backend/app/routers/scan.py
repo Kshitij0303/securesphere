@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.config import MAX_MANUAL_SCANS_PER_HOUR, MAX_RUNNING_SCANS_PER_USER
 from app.database import db, serialize
 from app.models import ScanIn
-from app.security import current_user
+from app.security import current_user, verified_user
 from app.services import scan_jobs
 from app.services.scan_service import perform_scan
 from app.utils.validators import clean_domain
@@ -23,7 +23,7 @@ async def _check_scan_limit(uid: str) -> None:
 
 
 @router.post("/scan")
-async def scan(body: ScanIn, user: dict = Depends(current_user)):
+async def scan(body: ScanIn, user: dict = Depends(verified_user)):
     """Scans and waits for the result (simple clients, tests). The website uses /scan/jobs instead."""
     uid = str(user["_id"])
     await _check_scan_limit(uid)
@@ -31,7 +31,7 @@ async def scan(body: ScanIn, user: dict = Depends(current_user)):
 
 
 @router.post("/scan/jobs", status_code=202)
-async def start_scan_job(body: ScanIn, user: dict = Depends(current_user)):
+async def start_scan_job(body: ScanIn, user: dict = Depends(verified_user)):
     uid = str(user["_id"])
     domain = clean_domain(body.domain)  # reject bad input now, not after the job started
     if scan_jobs.running_count(uid) >= MAX_RUNNING_SCANS_PER_USER:

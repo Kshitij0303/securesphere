@@ -7,6 +7,7 @@ Scoring works in three steps:
 2. Each category (certificate, protocols, headers, ...) can lose at most a set number of points (CATEGORIES).
 3. Some problems are so serious that the score is capped, however good the rest is (like SSL Labs):
    an expired certificate cannot score above 59 (grade F) even if everything else is perfect."""
+from urllib.parse import urlsplit
 
 PENALTY = {"critical": 30, "high": 15, "medium": 8, "low": 3}
 
@@ -111,7 +112,10 @@ def build_findings(cert: dict, tls: dict, ciphers: dict, headers: dict, redirect
 
     # HTTP -> HTTPS redirect
     if redirect.get("http_open") and redirect.get("redirects_to_https") is False:
-        add("NO_HTTPS_REDIRECT", "high", f"http:// answers with status {redirect.get('status')} instead of redirecting to https://")
+        if redirect.get("location"):
+            add("NO_HTTPS_REDIRECT", "high", f"http:// sends visitors to {redirect['location']}, which is still plain HTTP, not https://")
+        else:
+            add("NO_HTTPS_REDIRECT", "high", "http:// shows the page without encryption instead of redirecting to https://")
 
     # Headers
     present, details = headers.get("headers", {}), headers.get("details", {})
@@ -160,7 +164,9 @@ def build_findings(cert: dict, tls: dict, ciphers: dict, headers: dict, redirect
             add("VARIANT_CERT_INVALID", "high", f"{other} has a certificate that browsers reject")
         elif variant.get("chain_incomplete"):
             add("VARIANT_CERT_CHAIN_INCOMPLETE", "low", f"{other} does not send its intermediate certificate")
-        if variant.get("redirects_to_https") is False:
+        # Skip when the main finding already covers it: http://example.com -> http://www.example.com (still HTTP)
+        already_reported = urlsplit(redirect.get("location") or "").hostname == other
+        if variant.get("redirects_to_https") is False and not already_reported:
             add("VARIANT_NO_HTTPS_REDIRECT", "medium", f"http://{other} does not redirect to https://")
 
     return findings

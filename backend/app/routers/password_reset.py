@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException
 
-from app.config import FRONTEND_URL, MAX_RESET_REQUESTS_PER_HOUR, RESET_TOKEN_MINUTES, SMTP_HOST
+from app.config import FRONTEND_URL, MAX_RESET_REQUESTS_PER_HOUR, RESET_TOKEN_MINUTES, EMAIL_ENABLED
 from app.database import db
 from app.models import ForgotPasswordIn, ResetPasswordIn
 from app.security import hash_password
@@ -50,7 +50,7 @@ async def forgot_password(body: ForgotPasswordIn):
         "If you did not ask for this, ignore this email. Your password will not change."
     )
     await asyncio.to_thread(send_email, user["email"], "Reset your SecureSphere password", body_text)
-    if not SMTP_HOST:
+    if not EMAIL_ENABLED:
         # Local development only: with no email server configured, print the link so it can still be tested.
         log.warning("SMTP not configured. Password reset link for %s: %s", user["email"], link)
     return GENERIC_REPLY

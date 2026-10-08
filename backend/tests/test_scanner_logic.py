@@ -284,3 +284,16 @@ def test_https_that_serves_no_page_is_reported(monkeypatch):
     result = h.check_headers("neverssl.example")
     assert len(calls) == 2 and result["details"] == {"https_no_page": True}
     assert "HTTPS_NO_PAGE" in findings_for(headers=result)
+
+
+def test_http_hop_to_the_other_name_is_reported_once():
+    """google.com: http://google.com -> http://www.google.com (still HTTP). One finding, not two."""
+    redirect = {"http_open": True, "redirects_to_https": False, "status": 301, "location": "http://www.google.com/"}
+    variant = {"exists": True, "host": "www.google.com", "https_ok": True, "cert_valid": True, "redirects_to_https": False}
+    ids = [f["id"] for f in build_findings(GOOD_CERT, GOOD_TLS, GOOD_CIPHERS, GOOD_HEADERS, redirect, NO_VULNS,
+                                           variant=variant)]
+    assert "NO_HTTPS_REDIRECT" in ids and "VARIANT_NO_HTTPS_REDIRECT" not in ids
+    # the other name is still reported when the main redirect goes somewhere else
+    ids = [f["id"] for f in build_findings(GOOD_CERT, GOOD_TLS, GOOD_CIPHERS, GOOD_HEADERS, GOOD_REDIRECT, NO_VULNS,
+                                           variant=variant)]
+    assert "VARIANT_NO_HTTPS_REDIRECT" in ids

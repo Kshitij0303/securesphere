@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { showEvidence } from "./findingText";
 
 const ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
 // null = could not test. It must never be printed as "Off", "No" or "Missing".
@@ -116,7 +117,7 @@ export function downloadReport(data, grade) {
     findings.forEach((f, i) => {
       const pts = f.points_lost == null ? "" : f.points_lost > 0 ? ` (-${f.points_lost} points)` : " (no extra points: category limit reached)";
       text(`${i + 1}. [${f.severity.toUpperCase()}] ${f.title}${pts}`, { bold: true });
-      if (f.evidence && f.evidence !== f.problem) row("What we found", f.evidence);
+      if (showEvidence(f)) row("What we found", f.evidence);
       row("Problem", f.problem);
       row("Impact", f.impact);
       text(`Fix: ${f.fix}`, { gap: 3 });

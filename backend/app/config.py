@@ -45,3 +45,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "")
+# Optional: send email through Brevo's web API instead of SMTP. Needed on hosts that block SMTP ports
+# (Render's free plan). The sender (SMTP_FROM, or SMTP_USER) must be a verified sender in Brevo.
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+EMAIL_ENABLED = bool(SMTP_HOST or BREVO_API_KEY)

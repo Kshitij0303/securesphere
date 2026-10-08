@@ -7,6 +7,7 @@ from pathlib import Path
 os.environ.setdefault("JWT_SECRET", "test-secret-that-is-long-enough-for-hs256")
 os.environ["USE_MOCK_SCANNER"] = "true"
 os.environ["SMTP_HOST"] = ""
+os.environ["BREVO_API_KEY"] = ""
 os.environ["ANTHROPIC_API_KEY"] = "test-key-not-used"
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, so `import scanner` works
 

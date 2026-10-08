@@ -56,4 +56,6 @@ def check_https_redirect(host: str, ip: str | None = None) -> dict:
                 break
         current, path = next_host, (target.path or "/") + (f"?{target.query}" if target.query else "")
 
-    return {"http_open": True, "redirects_to_https": False, "status": first_status, "location": None}
+    # Where the visitor ends up, if the server moved them along before serving plain HTTP (shown in the finding)
+    final = f"http://{current}{path}" if (current, path) != (host, "/") else None
+    return {"http_open": True, "redirects_to_https": False, "status": first_status, "location": final}

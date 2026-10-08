@@ -3,7 +3,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from app.config import FRONTEND_URL, SMTP_HOST, VERIFY_TOKEN_HOURS
+from app.config import FRONTEND_URL, EMAIL_ENABLED, VERIFY_TOKEN_HOURS
 from app.database import db
 from app.services.email_service import send_email
 from app.services.tokens import new_token
@@ -27,7 +27,7 @@ async def send_verification(user: dict) -> None:
         "If you did not create an account, ignore this email."
     )
     await asyncio.to_thread(send_email, user["email"], "Confirm your SecureSphere email", body)
-    if not SMTP_HOST:
+    if not EMAIL_ENABLED:
         log.warning("SMTP not configured. Email verification link for %s: %s", user["email"], link)
 
 

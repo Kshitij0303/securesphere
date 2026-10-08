@@ -5,7 +5,7 @@ export default function EmailTypoHint({ email, onAccept }) {
   const suggestion = suggestEmail(email);
   if (!suggestion) return null;
   return (
-    <p className="mt-1 text-sm text-amber-800">
+    <p className="mt-1.5 text-sm text-warn">
       Did you mean{" "}
       <button type="button" onClick={() => onAccept(suggestion)} className="font-semibold underline">
         {suggestion}

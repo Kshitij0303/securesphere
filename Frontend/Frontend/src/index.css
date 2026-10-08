@@ -1,1 +1,166 @@
 @import "tailwindcss";
+
+/* Dark mode follows the "dark" class on <html> (set by theme.js from the saved choice or the system setting). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens: every colour in the app comes from here, so light and dark stay consistent. */
+:root {
+  color-scheme: light;
+  --bg: #f4f7fb;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --line: #e2e8f0;
+  --fg: #0f172a;
+  --muted: #475569;
+  --subtle: #64748b;
+  --accent: #0f766e;
+  --accent-hover: #115e59;
+  --accent-soft: #e6f6f4;
+  --on-accent: #ffffff;
+  --ok: #047857;
+  --ok-soft: #ecfdf5;
+  --warn: #b45309;
+  --warn-soft: #fffbeb;
+  --bad: #b91c1c;
+  --bad-soft: #fef2f2;
+  --info: #0369a1;
+  --info-soft: #f0f9ff;
+  --ring-track: #e2e8f0;
+  --glow: rgba(15, 118, 110, 0.12);
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #070b14;
+  --surface: #0d1422;
+  --surface-2: #131c2e;
+  --line: #1e293b;
+  --fg: #e6edf7;
+  --muted: #a3b1c6;
+  --subtle: #8391a7;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-soft: rgba(45, 212, 191, 0.1);
+  --on-accent: #042f2e;
+  --ok: #34d399;
+  --ok-soft: rgba(52, 211, 153, 0.1);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.1);
+  --bad: #f87171;
+  --bad-soft: rgba(248, 113, 113, 0.1);
+  --info: #38bdf8;
+  --info-soft: rgba(56, 189, 248, 0.1);
+  --ring-track: #1e293b;
+  --glow: rgba(45, 212, 191, 0.14);
+}
+
+@theme inline {
+  --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+}
+
+@layer base {
+  body {
+    @apply bg-bg font-sans text-fg antialiased;
+    transition: background-color 0.2s, color 0.2s;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Shared building blocks used by every page. */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 font-semibold transition-colors
+    disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface p-5 shadow-sm sm:p-6;
+  }
+  .card-title {
+    @apply text-base font-semibold text-fg;
+  }
+  .page-title {
+    @apply text-3xl font-bold tracking-tight text-fg sm:text-4xl;
+  }
+  .page-lead {
+    @apply mt-2 max-w-2xl text-muted;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-on-accent shadow-sm hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply btn border border-line bg-surface text-fg hover:bg-surface-2;
+  }
+  .btn-ghost {
+    @apply btn px-3 py-2 font-medium text-muted hover:bg-surface-2 hover:text-fg;
+  }
+  .input {
+    @apply mt-1.5 w-full rounded-xl border border-line bg-surface px-4 py-3 text-fg outline-none transition
+      placeholder:text-subtle focus:border-accent focus:ring-4 focus:ring-accent/15;
+  }
+  .label {
+    @apply block text-sm font-medium text-fg;
+  }
+  .link {
+    @apply font-medium text-accent underline-offset-4 hover:underline;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .notice {
+    @apply rounded-xl border px-4 py-3 text-sm;
+  }
+}
+
+/* Soft grid behind the landing page hero. */
+.hero-grid {
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at top, black 20%, transparent 70%);
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+@keyframes scan-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+.scan-sweep {
+  animation: scan-sweep 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-up, .scan-sweep { animation: none; }
+  * { transition: none !important; }
+}

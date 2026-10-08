@@ -1,64 +1,108 @@
 import { Link } from "react-router-dom";
 import { downloadReport } from "../reportPdf";
 import Findings from "./Findings";
+import Icon from "./Icon";
 import MonitorToggle from "./MonitorToggle";
 
 export function scoreColor(score) {
-  // green 80+, orange 50-79, red below 50
-  return score >= 80 ? "#047857" : score >= 50 ? "#d97706" : "#b91c1c";
+  // green 80+, orange 50-79, red below 50 (CSS variables, so the colour adapts to light and dark mode)
+  return score >= 80 ? "var(--ok)" : score >= 50 ? "var(--warn)" : "var(--bad)";
 }
 
 function Mark({ ok }) {
-  if (ok == null) return <span className="font-semibold text-slate-400" title="Could not be tested">?</span>;
+  if (ok == null) {
+    return (
+      <span title="Could not be tested" className="flex h-5 w-5 items-center justify-center rounded-full bg-surface-2 text-xs font-bold text-subtle">
+        ?
+      </span>
+    );
+  }
   return ok ? (
-    <span className="font-semibold text-emerald-700">✓</span>
+    <span role="img" aria-label="OK" className="flex h-5 w-5 items-center justify-center rounded-full bg-ok-soft text-ok">
+      <Icon name="check" className="h-3.5 w-3.5" strokeWidth={3} />
+    </span>
   ) : (
-    <span className="font-semibold text-amber-600">⚠</span>
+    <span role="img" aria-label="Warning" className="flex h-5 w-5 items-center justify-center rounded-full bg-warn-soft text-warn">
+      <span aria-hidden="true" className="text-xs font-bold">!</span>
+    </span>
   );
 }
 
 function Row({ label, ok, value }) {
   return (
-    <div className="flex items-center justify-between border-b border-slate-100 py-2 last:border-0">
-      <span className="text-slate-600">{label}</span>
-      <span className="flex items-center gap-2 text-slate-900">
-        {value !== undefined && <span className="text-sm">{value}</span>}
+    <div className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-0">
+      <span className="text-sm text-muted">{label}</span>
+      <span className="flex min-w-0 items-center gap-2 text-right text-fg">
+        {value !== undefined && <span className="truncate text-sm font-medium">{value}</span>}
         <Mark ok={ok} />
       </span>
     </div>
   );
 }
 
-function Card({ title, children }) {
+function Card({ title, icon, children }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5">
-      <h2 className="mb-2 text-lg font-semibold text-slate-900">{title}</h2>
+    <section className="card fade-up">
+      <div className="mb-2 flex items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">
+          <Icon name={icon} className="h-5 w-5" />
+        </span>
+        <h2 className="card-title">{title}</h2>
+      </div>
       {children}
     </section>
   );
 }
 
+function Note({ tone = "subtle", children }) {
+  const cls = { subtle: "text-subtle", warn: "text-warn" }[tone];
+  return <p className={`mt-3 text-sm ${cls}`}>{children}</p>;
+}
+
 function ScoreCircle({ score }) {
   const color = scoreColor(score);
-  const r = 54;
+  const r = 52;
   const circ = 2 * Math.PI * r;
   return (
-    <div className="relative h-36 w-36 shrink-0">
-      <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-        <circle cx="60" cy="60" r={r} fill="none" stroke="#e2e8f0" strokeWidth="10" />
+    <div className="relative h-44 w-44 shrink-0">
+      <div className="absolute inset-4 rounded-full blur-2xl" style={{ background: color, opacity: 0.15 }} />
+      <svg viewBox="0 0 120 120" className="relative h-full w-full -rotate-90">
+        <circle cx="60" cy="60" r={r} fill="none" style={{ stroke: "var(--ring-track)" }} strokeWidth="9" />
         <circle
-          cx="60" cy="60" r={r} fill="none" stroke={color} strokeWidth="10"
+          cx="60" cy="60" r={r} fill="none" strokeWidth="9"
           strokeLinecap="round"
           strokeDasharray={circ}
           strokeDashoffset={circ * (1 - score / 100)}
+          style={{ stroke: color, transition: "stroke-dashoffset 0.8s ease-out" }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-bold" style={{ color }}>{score}</span>
-        <span className="text-sm text-slate-500">out of 100</span>
+        <span className="text-5xl font-extrabold tracking-tight" style={{ color }}>{score}</span>
+        <span className="text-sm text-subtle">out of 100</span>
       </div>
     </div>
   );
+}
+
+const SEVERITIES = [
+  ["critical", "Critical", "bg-bad text-white dark:text-bg"],
+  ["high", "High", "bg-bad-soft text-bad"],
+  ["medium", "Medium", "bg-warn-soft text-warn"],
+  ["low", "Low", "bg-surface-2 text-muted"],
+];
+
+function SeverityCounts({ findings }) {
+  if (!findings.length) {
+    return (
+      <span className="chip bg-ok-soft text-ok">
+        <Icon name="check" className="h-3 w-3" strokeWidth={3} /> No problems found
+      </span>
+    );
+  }
+  return SEVERITIES.map(([key, label, cls]) => {
+    const n = findings.filter((f) => f.severity === key).length;
+    return n ? <span key={key} className={`chip ${cls}`}>{n} {label}</span> : null;
+  });
 }
 
 // null = could not test. It must never be shown as "Off" or "Missing".
@@ -95,28 +139,34 @@ function CookieRows({ cookies }) {
 function CompareBox({ compare }) {
   if (!compare) return null;
   if (!compare.previous) {
-    return <p className="rounded-lg border border-slate-200 bg-white p-5 text-slate-600">This is your first scan of this site.</p>;
+    return (
+      <p className="card flex items-center gap-3 text-muted">
+        <Icon name="history" className="h-5 w-5 text-accent" /> This is your first scan of this site.
+      </p>
+    );
   }
   const change = compare.score_change;
   const List = ({ items, empty }) =>
     items.length ? (
-      <ul className="mt-1 list-disc pl-5">{items.map((f) => <li key={f.id}>{f.title}</li>)}</ul>
+      <ul className="mt-2 space-y-1 text-sm">{items.map((f) => <li key={f.id} className="flex gap-2"><span aria-hidden="true">•</span>{f.title}</li>)}</ul>
     ) : (
-      <p className="mt-1 text-slate-500">{empty}</p>
+      <p className="mt-2 text-sm text-subtle">{empty}</p>
     );
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5">
-      <h2 className="text-lg font-semibold">
-        Compared with the previous scan ({new Date(compare.previous.scanned_at).toLocaleDateString()})
-      </h2>
-      <p className="mt-1 font-semibold" style={{ color: change > 0 ? "#047857" : change < 0 ? "#b91c1c" : "#475569" }}>
+    <section className="card fade-up">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="card-title">
+          Compared with the previous scan ({new Date(compare.previous.scanned_at).toLocaleDateString()})
+        </h2>
+        <Link to={`/scans/${compare.previous.id}`} className="link text-sm">Open the previous scan</Link>
+      </div>
+      <p className="mt-2 font-semibold" style={{ color: change > 0 ? "var(--ok)" : change < 0 ? "var(--bad)" : "var(--muted)" }}>
         Score {change > 0 ? `went up by ${change}` : change < 0 ? `went down by ${-change}` : "did not change"} ({compare.previous.score} → {compare.previous.score + change})
       </p>
-      <div className="mt-3 grid gap-4 sm:grid-cols-2">
-        <div><h3 className="font-medium text-emerald-800">Fixed since then</h3><List items={compare.fixed_findings} empty="Nothing fixed." /></div>
-        <div><h3 className="font-medium text-red-800">New problems</h3><List items={compare.new_findings} empty="No new problems." /></div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl bg-ok-soft p-4"><h3 className="font-medium text-ok">Fixed since then</h3><List items={compare.fixed_findings} empty="Nothing fixed." /></div>
+        <div className="rounded-xl bg-bad-soft p-4"><h3 className="font-medium text-bad">New problems</h3><List items={compare.new_findings} empty="No new problems." /></div>
       </div>
-      <Link to={`/scans/${compare.previous.id}`} className="mt-3 inline-block text-sm font-medium text-teal-700 underline">Open the previous scan</Link>
     </section>
   );
 }
@@ -129,49 +179,63 @@ export default function ScanResults({ data, compare = null }) {
   const v = data.vulnerabilities || {};
   const negotiatedWeak = cipher.weak_list?.includes(cipher.negotiated);
   const weakCiphersOk = cipher.weak ? false : cipher.untested?.length ? null : true;
+  const grade = scoreGrade(data.score);
   return (
     <div className="mt-8 space-y-6">
-      <div className="flex flex-col items-center gap-6 rounded-lg border border-slate-200 bg-white p-6 sm:flex-row">
-        <ScoreCircle score={data.score} />
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-900">{data.domain}</h2>
-          <p className="font-semibold" style={{ color: scoreColor(data.score) }}>
-            Grade {scoreGrade(data.score)}
-          </p>
-          <p className="text-slate-600">Scanned on {new Date(data.scanned_at).toLocaleString()}</p>
-          {data.requested_domain && (
-            <p className="text-sm text-slate-500">
-              {data.requested_domain} has no website of its own, so we scanned {data.domain} instead.
-            </p>
-          )}
-          {data.cached && (
-            <p className="text-sm text-slate-500">This site was scanned a few minutes ago, so that result was reused.</p>
-          )}
-          {data.untested?.length > 0 && (
-            <p className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-sm text-amber-900">
-              <strong>Partial result:</strong> {data.untested.join(", ")} could not be checked. The score only counts the
-              checks that ran, so it may be higher than the site deserves.
-            </p>
-          )}
-          {data.score_cap && (
-            <p className="mt-1 text-sm font-medium text-red-800">
-              Score capped at {data.score_cap.max_score} because: {data.score_cap.title}.
-            </p>
-          )}
-          <p className="mt-1 text-sm text-slate-500">
-            This score comes from SecureSphere's own rules. It is not a guarantee of security.
-          </p>
-          <button
-            onClick={() => downloadReport(data, scoreGrade(data.score))}
-            className="mt-3 rounded-md border border-teal-700 px-4 py-2 font-semibold text-teal-800 hover:bg-teal-50"
-          >
-            Download report (PDF)
-          </button>
+      <section className="card fade-up relative overflow-hidden">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: "var(--glow)" }} />
+        <div className="relative flex flex-col items-center gap-8 md:flex-row md:items-center">
+          <ScoreCircle score={data.score} />
+          <div className="min-w-0 flex-1 text-center md:text-left">
+            <div className="flex flex-wrap items-center justify-center gap-3 md:justify-start">
+              <h2 className="break-all text-2xl font-bold tracking-tight text-fg sm:text-3xl">{data.domain}</h2>
+              <p
+                className="rounded-lg px-2.5 py-1 text-sm font-bold"
+                style={{ color: scoreColor(data.score), background: "color-mix(in srgb, currentColor 12%, transparent)" }}
+              >
+                Grade {grade}
+              </p>
+            </div>
+            <p className="mt-1 text-sm text-subtle">Scanned on {new Date(data.scanned_at).toLocaleString()}</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2 md:justify-start">
+              <SeverityCounts findings={data.findings || []} />
+            </div>
+            <div className="mt-4 space-y-2 text-left">
+              {data.requested_domain && (
+                <p className="notice border-line bg-surface-2 text-muted">
+                  {data.requested_domain} has no website of its own, so we scanned {data.domain} instead.
+                </p>
+              )}
+              {data.cached && (
+                <p className="notice border-line bg-surface-2 text-muted">This site was scanned a few minutes ago, so that result was reused.</p>
+              )}
+              {data.untested?.length > 0 && (
+                <p className="notice border-warn/30 bg-warn-soft text-fg">
+                  <strong>Partial result:</strong> {data.untested.join(", ")} could not be checked. The score only counts the
+                  checks that ran, so it may be higher than the site deserves.
+                </p>
+              )}
+              {data.score_cap && (
+                <p className="notice border-bad/30 bg-bad-soft font-medium text-bad">
+                  Score capped at {data.score_cap.max_score} because: {data.score_cap.title}.
+                </p>
+              )}
+            </div>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 md:justify-start">
+              <button onClick={() => downloadReport(data, grade)} className="btn-primary">
+                <Icon name="download" className="h-4 w-4" />
+                Download report (PDF)
+              </button>
+              <p className="text-xs text-subtle">
+                This score comes from SecureSphere's own rules. It is not a guarantee of security.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card title="Certificate">
+        <Card title="Certificate" icon="cert">
           <Row label="Valid" ok={c.valid} />
           <Row label="Domain matches" ok={c.hostname_match} value={c.hostname_match == null ? "Unknown" : undefined} />
           <Row label="Not self-signed" ok={!c.self_signed} />
@@ -181,12 +245,12 @@ export default function ScanResults({ data, compare = null }) {
           {c.chain_complete != null && (
             <Row label="Full chain sent" ok={c.chain_complete} value={c.chain_complete ? undefined : "Intermediate missing"} />
           )}
-          <p className="mt-2 text-sm text-slate-500">
+          <Note>
             Issuer: {c.issuer} · Expires {c.expiry_date}
-          </p>
+          </Note>
         </Card>
 
-        <Card title="Protocol versions">
+        <Card title="Protocol versions" icon="layers">
           {tls.ssl_2 != null && <Row label="SSL 2.0 (broken)" ok={not(tls.ssl_2)} value={enabled(tls.ssl_2)} />}
           {tls.ssl_3 != null && <Row label="SSL 3.0 (broken)" ok={not(tls.ssl_3)} value={enabled(tls.ssl_3)} />}
           <Row label="TLS 1.0 (outdated)" ok={not(tls.tls_1_0)} value={enabled(tls.tls_1_0)} />
@@ -195,7 +259,7 @@ export default function ScanResults({ data, compare = null }) {
           <Row label="TLS 1.3 (preferred)" ok={tls.tls_1_3} value={enabled(tls.tls_1_3)} />
         </Card>
 
-        <Card title="Cipher">
+        <Card title="Cipher" icon="key">
           <Row label="Cipher in use" ok={cipher.negotiated === "Unknown" ? null : !negotiatedWeak} value={cipher.negotiated} />
           <Row label="Forward secrecy" ok={cipher.forward_secrecy} value={cipher.forward_secrecy == null ? "Could not test" : undefined} />
           <Row
@@ -204,11 +268,11 @@ export default function ScanResults({ data, compare = null }) {
             value={cipher.weak ? cipher.weak_list.length : weakCiphersOk == null ? "Partly tested" : "None"}
           />
           {cipher.untested?.length > 0 && (
-            <p className="mt-2 text-sm text-slate-500">Could not be tested from this server: {cipher.untested.join(", ")}.</p>
+            <Note>Could not be tested from this server: {cipher.untested.join(", ")}.</Note>
           )}
         </Card>
 
-        <Card title="Security headers">
+        <Card title="Security headers" icon="file">
           <Row
             label="HSTS"
             ok={h.hsts == null ? null : h.hsts && !hd.hsts_max_age_too_short}
@@ -223,23 +287,23 @@ export default function ScanResults({ data, compare = null }) {
           <Row label="X-Content-Type-Options" ok={h.x_content_type_options} value={present(h.x_content_type_options)} />
           <Row label="Referrer-Policy" ok={h.referrer_policy} value={present(h.referrer_policy)} />
           {hd.redirects_to && (
-            <p className="mt-2 text-sm text-amber-800">
+            <Note tone="warn">
               This site sends visitors to {hd.redirects_to}, so its page headers were not checked here. Scan {hd.redirects_to} to see them.
-            </p>
+            </Note>
           )}
           {hd.blocked_by && (
-            <p className="mt-2 text-sm text-amber-800">
+            <Note tone="warn">
               The site's firewall ({hd.blocked_by}) blocked the scanner's page request, so headers and cookies could not be checked. Try again later.
-            </p>
+            </Note>
           )}
           {h.hsts && (
-            <p className="mt-2 text-sm text-slate-500">
+            <Note>
               HSTS: includeSubDomains {hd.hsts_include_subdomains ? "yes" : "no"} · preload {hd.hsts_preload ? "yes" : "no"}
-            </p>
+            </Note>
           )}
         </Card>
 
-        <Card title="HTTPS redirect and cookies">
+        <Card title="HTTPS redirect and cookies" icon="cookie">
           <Row
             label="HTTP → HTTPS redirect"
             ok={data.redirect?.http_open === false ? true : data.redirect?.redirects_to_https ?? null}
@@ -248,14 +312,14 @@ export default function ScanResults({ data, compare = null }) {
           <CookieRows cookies={data.cookies || []} />
         </Card>
 
-        <Card title="Known vulnerabilities">
+        <Card title="Known vulnerabilities" icon="bug">
           <Row label="Heartbleed" ok={not(v.heartbleed)} value={vulnerable(v.heartbleed)} />
           <Row label="OpenSSL CCS injection" ok={not(v.ccs_injection)} value={vulnerable(v.ccs_injection)} />
           <Row label="ROBOT" ok={not(v.robot)} value={vulnerable(v.robot)} />
         </Card>
 
         {data.dns && (
-          <Card title="DNS">
+          <Card title="DNS" icon="globe">
             <Row
               label="CAA record"
               ok={data.dns.caa ? data.dns.caa.present : null}
@@ -265,17 +329,17 @@ export default function ScanResults({ data, compare = null }) {
             <Row label="DNSSEC" ok={data.dns.dnssec ? true : null} value={yesNoUnknown(data.dns.dnssec, "Enabled", "Not enabled")} />
             <Row label="HSTS preload list" ok={data.dns.hsts_preloaded ? true : null} value={yesNoUnknown(data.dns.hsts_preloaded, "Listed", "Not listed")} />
             {data.dns.caa?.issuers?.length > 0 && (
-              <p className="mt-2 text-sm text-slate-500">Allowed certificate authorities: {data.dns.caa.issuers.join(", ")}</p>
+              <Note>Allowed certificate authorities: {data.dns.caa.issuers.join(", ")}</Note>
             )}
           </Card>
         )}
 
         {data.variant && (
-          <Card title={`Other address: ${data.variant.host}`}>
+          <Card title={`Other address: ${data.variant.host}`} icon="link">
             {data.variant.exists === false ? (
-              <p className="text-slate-600">This address does not exist, so there is nothing to check.</p>
+              <p className="text-sm text-muted">This address does not exist, so there is nothing to check.</p>
             ) : data.variant.exists == null ? (
-              <p className="text-slate-600">Could not check this address.</p>
+              <p className="text-sm text-muted">Could not check this address.</p>
             ) : (
               <>
                 <Row label="Serves HTTPS" ok={data.variant.https_ok} value={yesNoUnknown(data.variant.https_ok)} />

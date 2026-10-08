@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login, signup, saveToken } from "../api";
+import AuthCard from "../components/AuthCard";
 import EmailTypoHint from "../components/EmailTypoHint";
 import ErrorBox from "../components/ErrorBox";
 
@@ -33,48 +34,53 @@ export default function AuthPage({ mode, onAuth }) {
     }
   }
 
-  const inputClass =
-    "mt-1 w-full rounded-md border border-slate-300 bg-white px-4 py-3 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/30";
-
   return (
-    <div className="max-w-sm">
-      <h1 className="text-3xl font-bold">{isLogin ? "Log in" : "Create your account"}</h1>
+    <AuthCard
+      icon={isLogin ? "lock" : "user"}
+      title={isLogin ? "Log in" : "Create your account"}
+      subtitle={isLogin ? "Welcome back. Scan, monitor and track your sites." : "Free. Scan sites, get PDF reports and alerts."}
+      footer={
+        <>
+          {isLogin ? "New here? " : "Already have an account? "}
+          <Link to={isLogin ? "/signup" : "/login"} className="link">
+            {isLogin ? "Create an account" : "Log in"}
+          </Link>
+        </>
+      }
+    >
       <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
         {!isLogin && (
-          <label className="block">
+          <label className="label">
             Name
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={50} autoComplete="name" className={inputClass} />
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={50} autoComplete="name" className="input" />
           </label>
         )}
-        <label className="block">
+        <label className="label">
           Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" className={inputClass} />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" className="input" />
           {!isLogin && <EmailTypoHint email={email} onAccept={setEmail} />}
         </label>
-        <label className="block">
+        <label className="label">
           Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={isLogin ? "current-password" : "new-password"}
+            className="input"
+          />
+          {!isLogin && <span className="mt-1.5 block text-xs font-normal text-subtle">At least 8 characters.</span>}
         </label>
         {isLogin && (
           <p className="text-right">
-            <Link to="/forgot-password" className="text-sm font-medium text-teal-700 underline">Forgot password?</Link>
+            <Link to="/forgot-password" className="link text-sm">Forgot password?</Link>
           </p>
         )}
         <ErrorBox message={error} />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-md bg-teal-700 px-6 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-        >
+        <button type="submit" disabled={loading} className="btn-primary w-full py-3">
           {loading ? "Please wait…" : isLogin ? "Log in" : "Sign up"}
         </button>
       </form>
-      <p className="mt-4 text-slate-600">
-        {isLogin ? "New here? " : "Already have an account? "}
-        <Link to={isLogin ? "/signup" : "/login"} className="font-medium text-teal-700 underline">
-          {isLogin ? "Create an account" : "Log in"}
-        </Link>
-      </p>
-    </div>
+    </AuthCard>
   );
 }

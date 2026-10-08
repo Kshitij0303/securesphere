@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { verifyEmail } from "../api";
+import AuthCard from "../components/AuthCard";
 import ErrorBox from "../components/ErrorBox";
 
 // Opened from the link in the confirmation email: /verify-email?token=...
@@ -26,24 +27,23 @@ export default function VerifyEmailPage({ onVerified }) {
   }, [token, onVerified]);
 
   return (
-    <div className="max-w-md">
-      <h1 className="text-3xl font-bold">Confirm your email</h1>
-      {state === "checking" && <p className="mt-4 text-slate-600">Confirming…</p>}
-      {state === "missing" && <p className="mt-4 text-slate-600">Open the link from the email we sent you.</p>}
+    <AuthCard icon="mail" title="Confirm your email">
+      {state === "checking" && <p className="mt-4 text-muted">Confirming…</p>}
+      {state === "missing" && <p className="mt-4 text-muted">Open the link from the email we sent you.</p>}
       {state === "done" && (
-        <div role="status" className="mt-6 rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-slate-800">
+        <div role="status" className="notice mt-6 border-ok/30 bg-ok-soft text-base text-fg">
           <p>Your email address is confirmed. You will now receive security alerts by email.</p>
-          <Link to="/scan" className="mt-2 inline-block font-medium text-teal-700 underline">Go to SecureSphere</Link>
+          <Link to="/scan" className="link mt-2 inline-block">Go to SecureSphere</Link>
         </div>
       )}
       {state === "error" && (
         <>
           <ErrorBox message={error} />
-          <p className="mt-3 text-slate-600">
-            You can ask for a new link on your <Link to="/profile" className="font-medium text-teal-700 underline">profile page</Link>.
+          <p className="mt-3 text-muted">
+            You can ask for a new link on your <Link to="/profile" className="link">profile page</Link>.
           </p>
         </>
       )}
-    </div>
+    </AuthCard>
   );
 }

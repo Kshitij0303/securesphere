@@ -3,6 +3,8 @@ import { scanDomain } from "../api";
 import { useScan } from "../ScanContext";
 import DomainForm from "../components/DomainForm";
 import ErrorBox from "../components/ErrorBox";
+import Icon from "../components/Icon";
+import PageHeader from "../components/PageHeader";
 import ScanProgress from "../components/ScanProgress";
 import ScanResults from "../components/ScanResults";
 
@@ -33,13 +35,9 @@ export default function ScanPage() {
 
   return (
     <>
-      <h1 className="text-3xl font-bold">Check a website's HTTPS security</h1>
-      <p className="mt-2 max-w-xl text-slate-600">
+      <PageHeader icon="search" title="Check a website's HTTPS security">
         Enter a domain to see its certificate, TLS versions, ciphers, security headers and more.
-      </p>
-      <p className="mt-1 max-w-xl text-sm text-slate-500">
-        Only scan websites you own or have permission to test.
-      </p>
+      </PageHeader>
       <DomainForm
         buttonText="Scan website"
         loadingText="Scanning…"
@@ -47,6 +45,10 @@ export default function ScanPage() {
         onSubmit={handleScan}
         onInvalid={(msg) => { setData(null); setError(msg); }}
       />
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-subtle">
+        <Icon name="alert" className="h-3.5 w-3.5" />
+        Only scan websites you own or have permission to test.
+      </p>
       <ErrorBox message={error} />
       {loading && <ScanProgress domain={domain} steps={steps} />}
       {data && <ScanResults data={data} />}
